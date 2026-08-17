@@ -190,6 +190,12 @@ function checkAccessGate() {
         document.getElementById("simulation-panel").style.display = isDeveloper ? "block" : "none";
         document.getElementById("file-operations-section").style.display = isDeveloper ? "block" : "none";
 
+        // Admin-only panels (Audit, Attestation)
+        const auditSection = document.getElementById("audit-section");
+        const attestationSection = document.getElementById("attestation-section");
+        if (auditSection) auditSection.style.display = isAdmin ? "flex" : "none";
+        if (attestationSection) attestationSection.style.display = isAdmin ? "flex" : "none";
+
         // If teacher, lock down UI
         if (appState.currentUserRole.role === "Teacher") {
             appState.currentLocation = appState.currentUserRole.location;
