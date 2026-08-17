@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamil School Attendance Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS (xlsx) for Excel processing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="dark-mode">
+    <!-- Security Gate Screen -->
+    <div class="pin-gate-overlay" id="pin-gate-overlay">
+        <div class="pin-gate-card" style="max-width: 480px; width: 100%;">
+            <span class="pin-gate-icon">🏫</span>
+            <h2>Tamil School Gate</h2>
+            <p>Welcome! Please select your location and role to log in.</p>
+            
+            <!-- Step 1: Location Selection -->
+            <div class="form-group" style="text-align: left; margin-bottom: 12px;">
+                <label for="gate-location" style="font-weight: 600; display: block; margin-bottom: 6px;">📍 School Location:</label>
+                <select id="gate-location" class="gate-select" onchange="handleGateSelectionChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); outline: none;">
+                    <option value="Riverview" selected>Riverview</option>
+                </select>
+            </div>
+
+            <!-- Step 2: Primary Role (Radio Buttons) -->
+            <div class="form-group" id="gate-role-group" style="text-align: left; margin-bottom: 12px; display: none;">
+                <label style="font-weight: 600; display: block; margin-bottom: 6px;">👤 I am a:</label>
+                <div style="display: flex; gap: 24px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+                        <input type="radio" name="primary-role" value="Teachers" onchange="handleRoleTypeChange()" style="accent-color: var(--accent-color);">
+                        <span>Teacher</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+                        <input type="radio" name="primary-role" value="Admin" onchange="handleRoleTypeChange()" style="accent-color: var(--accent-color);">
+                        <span>Administrator / Admin</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Step 3a: Admin Sub-Roles (Hidden initially) -->
+            <div class="form-group" id="gate-admin-subroles" style="text-align: left; margin-bottom: 12px; display: none;">
+                <label style="font-weight: 600; display: block; margin-bottom: 6px;">🛠️ Admin Role:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
+                        <input type="radio" name="admin-subrole" value="Committee" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
+                        <span>Committee / President</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
+                        <input type="radio" name="admin-subrole" value="Principal" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
+                        <span>Principal</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
+                        <input type="radio" name="admin-subrole" value="Vice Principal" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
+                        <span>Vice Principal</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
+                        <input type="radio" name="admin-subrole" value="Developer" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
+                        <span>🛠 Developer Mode</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Step 3b: Teacher Class Selection (Hidden initially) -->
+            <div class="form-group" id="gate-teacher-classes" style="text-align: left; margin-bottom: 12px; display: none;">
+                <label for="gate-class-select" style="font-weight: 600; display: block; margin-bottom: 6px;">🎓 Class / Grade:</label>
+                <select id="gate-class-select" class="gate-select" onchange="handleClassChangeForGate()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); outline: none;">
+                    <option value="">-- Select Class --</option>
+                    <option value="Ilanthalir">Ilanthalir (Room 126)</option>
+                    <option value="Mazhalai">Mazhalai (Room 116)</option>
+                    <option value="Nilai 1">Nilai 1 (Room 118)</option>
+                    <option value="Nilai 2A">Nilai 2A (Room 122)</option>
+                    <option value="Nilai 2B">Nilai 2B (Room 125)</option>
+                    <option value="Nilai 3A">Nilai 3A (Room 124)</option>
+                    <option value="Nilai 3B">Nilai 3B (Room 127)</option>
+                    <option value="Nilai 4A">Nilai 4A (Room 129)</option>
+                    <option value="Nilai 4B">Nilai 4B (Room 130)</option>
+                    <option value="Nilai 5">Nilai 5 (Room 120)</option>
+                    <option value="Nilai 6">Nilai 6 (Room 115)</option>
+                    <option value="Nilai 7">Nilai 7 (Room 117)</option>
+                    <option value="Nilai 8">Nilai 8 (Room 111)</option>
+                </select>
+            </div>
+
+            <!-- Step 4: PIN/Password Entry (Hidden initially) -->
+            <div class="form-group" id="gate-password-group" style="text-align: center; margin-top: 12px; display: none;">
+                <label id="password-label" for="pin-entry" style="font-weight: 600; display: block; margin-bottom: 6px; text-align: left;">🔑 Password/PIN:</label>
+                <div class="pin-input-wrapper">
+                    <input type="password" id="pin-entry" maxlength="15" placeholder="••••" oninput="handlePinInput()" style="max-width: 100%; width: 100%; font-size: 1.5rem; letter-spacing: 0.1rem; padding: 10px; border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); border: 2px solid var(--border-color); outline: none; text-align: center;">
+                </div>
+                <div id="pin-error-msg" class="pin-error" style="display: none; margin-top: 8px; color: var(--danger-color); font-weight: 600; font-size: 0.85rem;">❌ Invalid Password / PIN. Access Denied.</div>
+            </div>
+
+            <div class="authorized-roles-tip" id="gate-tips" style="margin-top: 16px; min-height: 24px; font-size: 0.8rem; color: var(--text-muted);">
+                <!-- Hints populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Profile Popup Modal -->
+    <div id="student-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeStudentModal(event)">
+        <div class="student-modal-card" id="student-modal-card">
+            <button class="modal-close-btn" onclick="closeStudentModal()">✕</button>
+            <div class="modal-avatar-section" id="modal-avatar-section">
+                <div class="modal-avatar" id="modal-avatar">🧒</div>
+                <div class="avatar-glow" id="avatar-glow"></div>
+            </div>
+            <div class="modal-info-section">
+                <h2 id="modal-student-name">Student Name</h2>
+                <div class="modal-badge" id="modal-grade-badge">Nilai 1</div>
+                <div class="modal-details" id="modal-details">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="main-app-container" style="filter: blur(10px); pointer-events: none;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">🏫</span>
+                <div class="logo-text">
+                    <h1>Tamil School Portal</h1>
+                    <p>Attendance &amp; Auditing Dashboard</p>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="time-window-status" id="time-window-status">
+                    <div class="status-indicator"></div>
+                    <div class="status-details">
+                        <span class="status-title" id="status-title">Checking System Time...</span>
+                        <span class="status-time" id="status-time">--:--</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="font-size: 1.15rem; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 38px; line-height: 1;">🌙</button>
+                <button class="btn btn-secondary btn-logout" onclick="lockAppAccess()">🔒 Logout</button>
+            </div>
+        </header>
+
+        <!-- Active Date Bar (shown after login) -->
+        <div class="active-date-bar" id="active-date-bar" style="display:none;">
+            <div class="date-bar-inner">
+                <span class="date-bar-label">📅 Attendance Date:</span>
+                <span class="date-bar-value" id="date-bar-display">--</span>
+                <!-- Admin-only date editor -->
+                <div class="date-bar-admin-controls" id="date-bar-admin-controls" style="display:none;">
+                    <input type="date" id="admin-date-picker" onchange="handleAdminDateChange()" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                    <span class="date-hint">Admin: click date to change</span>
+                </div>
+            </div>
+            <div class="date-bar-role-badge" id="date-bar-role-badge">Teacher</div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="app-main">
+            <!-- Testing / Simulation Panel (Developer Mode only) -->
+            <section class="simulation-panel" id="simulation-panel">
+                <div class="sim-header" onclick="toggleSimPanel()">
+                    <h3>🛠️ Testing &amp; Date Simulation Dashboard</h3>
+                    <span class="toggle-icon" id="sim-toggle-icon">▲</span>
+                </div>
+                <div class="sim-body" id="sim-body">
+                    <p class="sim-desc">Use this panel to simulate different dates and times to test Friday 6 PM – 10 PM EST constraints.</p>
+                    <div class="sim-controls">
+                        <div class="control-group">
+                            <label for="sim-date">Simulated Date:</label>
+                            <input type="date" id="sim-date" value="2026-08-14">
+                        </div>
+                        <div class="control-group">
+                            <label for="sim-time">Simulated Time (24h):</label>
+                            <input type="time" id="sim-time" value="19:30">
+                        </div>
+                        <div class="control-group checkbox-group">
+                            <input type="checkbox" id="enable-sim">
+                            <label for="enable-sim">Enable Simulation</label>
+                        </div>
+                    </div>
+                    <div class="quick-scenarios">
+                        <span>Quick Scenarios (Friday):</span>
+                        <button onclick="setQuickScenario('2026-08-14', '17:00')">5:00 PM (Before Window)</button>
+                        <button onclick="setQuickScenario('2026-08-14', '19:30')">7:30 PM (Active Window)</button>
+                        <button onclick="setQuickScenario('2026-08-14', '22:30')">10:30 PM (After Close/Locked)</button>
+                        <button onclick="setQuickScenario('2026-08-15', '09:00')">Saturday (Not School Day)</button>
+                    </div>
+                    <div class="sim-indicators">
+                        <span class="indicator-item">Current Time (EST): <strong id="est-current-time">--:--</strong></span>
+                        <span class="indicator-item">Effective Attendance Date: <strong id="effective-date">--/--/----</strong></span>
+                        <span class="indicator-item">Authorized Role: <strong id="active-user-role" class="text-warning">Visitor</strong></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Excel File Upload / Template download (Developer Mode only) -->
+            <section class="file-operations card" id="file-operations-section">
+                <div class="drop-zone" id="drop-zone">
+                    <span class="drop-icon">📊</span>
+                    <div class="drop-text">
+                        <p class="main-text">Drag &amp; drop your Excel attendance spreadsheet here or <strong>browse files</strong></p>
+                        <p class="sub-text">Supports .xlsx and .xls formats</p>
+                    </div>
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display: none;">
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-secondary" onclick="generateSampleExcelTemplate()">
+                        📥 Download Blank Template
+                    </button>
+                    <div class="file-info-bar" id="file-info-bar" style="display: none;">
+                        <span class="file-name" id="loaded-file-name">template.xlsx</span>
+                        <button class="btn btn-text btn-danger" onclick="clearLoadedFile()">Remove</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Multi-Location Selector and Tabs Control -->
+            <section class="location-and-tabs-bar">
+                <div class="location-picker">
+                    <label for="location-select">📍 School Location:</label>
+                    <select id="location-select" onchange="handleLocationChange()">
+                        <option value="Riverview">Riverview</option>
+                    </select>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" id="tab-students" onclick="switchTab('Students')">
+                        🎓 Students <span class="badge" id="badge-students">90</span>
+                    </button>
+                    <button class="tab-btn" id="tab-teachers" onclick="switchTab('Teachers')">
+                        🏫 Teachers <span class="badge" id="badge-teachers">20</span>
+                    </button>
+                    <button class="tab-btn" id="tab-committee" onclick="switchTab('Committee')">
+                        👥 Committee <span class="badge" id="badge-committee">11</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Grid Controls -->
+            <section class="grid-controls" id="grid-controls-bar">
+                <div class="search-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-input" placeholder="Search by name or ID..." oninput="filterList()">
+                </div>
+                <div class="filters" id="status-filters-group">
+                    <button class="filter-btn active" onclick="setFilter('all')">All</button>
+                    <button class="filter-btn text-success" onclick="setFilter('present')">Present</button>
+                    <button class="filter-btn text-danger" onclick="setFilter('absent')">Absent</button>
+                    <button class="filter-btn text-warning" onclick="setFilter('unmarked')">Unmarked</button>
+                </div>
+            </section>
+
+            <!-- Attendance List Card -->
+            <section class="attendance-card card">
+                <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <h2 id="current-sheet-title">Students List</h2>
+                        <div id="assigned-teachers-info" style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600;"></div>
+                    </div>
+                    <div class="selection-stats" id="selection-stats-container">
+                        <span class="stat-tag tag-success">Present: <strong id="stat-present">0</strong></span>
+                        <span class="stat-tag tag-danger">Absent: <strong id="stat-absent">0</strong></span>
+                        <span class="stat-tag tag-warning">Unmarked: <strong id="stat-unmarked">90</strong></span>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="attendance-table" id="attendance-table">
+                        <thead>
+                            <tr id="table-headers-row">
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th id="th-info">Grade</th>
+                                <th class="center-align" id="th-status-col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendance-tbody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="empty-state" id="empty-state" style="display: none;">
+                    <div class="empty-icon">📭</div>
+                    <p>No records found matching search, filter, or location criteria.</p>
+                </div>
+            </section>
+
+            <!-- Principal & Vice Principal Attestation Card -->
+            <section class="attestation-card card" id="attestation-section">
+                <h3>✍️ Official Verification &amp; Attestation</h3>
+                <p class="attestation-desc">Before final submission, the Principal and Vice Principal must review the attendance lists for all locations and verify below.</p>
+                
+                <div class="attestation-options">
+                    <div class="attestation-option">
+                        <label class="custom-checkbox">
+                            <input type="checkbox" id="attest-vp" onchange="handleAttestationChange()">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label"><strong>Vice Principal Attestation</strong> (Verify teachers &amp; students)</span>
+                        </label>
+                    </div>
+                    <div class="attestation-option">
+                        <label class="custom-checkbox">
+                            <input type="checkbox" id="attest-principal" onchange="handleAttestationChange()">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label"><strong>Principal Attestation</strong> (Final approval &amp; sign-off)</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Audit Logs Card -->
+            <section class="audit-logs-card card">
+                <div class="audit-header" onclick="toggleAuditLogs()">
+                    <h3>📋 Real-Time Activity Audit Logs</h3>
+                    <span class="toggle-icon" id="audit-toggle-icon">▲</span>
+                </div>
+                <div class="audit-body" id="audit-body">
+                    <div class="audit-list" id="audit-list">
+                        <!-- Dynamic Logs -->
+                        <div class="audit-empty">No activity logs recorded yet. Changes made by administrators will appear here.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer / Action bar -->
+        <footer class="app-footer-bar">
+            <div class="footer-actions">
+                <button class="btn btn-secondary" onclick="exportExcel()">
+                    💾 Export Excel Sheet
+                </button>
+                <button class="btn btn-primary" id="btn-submit-attendance" onclick="submitAttendance()" disabled>
+                    ✉️ Submit &amp; Send Email
+                </button>
+            </div>
+            <div class="footer-note">
+                <p>Note: Submission requires Principal &amp; Vice Principal attestation and entering a valid 4-digit PIN.</p>
+            </div>
+        </footer>
+    </div>
+
+
+
+    <script src="app.js"></script>
+</body>
+</html>
