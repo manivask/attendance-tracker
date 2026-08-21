@@ -217,6 +217,16 @@ function checkAccessGate() {
                 }
             }
 
+            // Show the main class picker
+            const mainClassPicker = document.getElementById("main-class-picker");
+            if (mainClassPicker) {
+                mainClassPicker.style.display = "inline-block";
+                if (!appState.currentUserRole.grade) {
+                    appState.currentUserRole.grade = "Nilai 1";
+                }
+                document.getElementById("main-class-select").value = appState.currentUserRole.grade;
+            }
+
             // Auto initialize class students to Present if unmarked
             initializeDefaultAttendanceForClass();
         } else {
@@ -228,6 +238,11 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "inline-block";
+            }
+            // Hide main class picker for Admin since they can see all classes
+            const mainClassPicker = document.getElementById("main-class-picker");
+            if (mainClassPicker) {
+                mainClassPicker.style.display = "none";
             }
         }
     } else {
@@ -242,13 +257,9 @@ function checkAccessGate() {
         // Reset overlay controls
         document.getElementById("gate-location").value = "";
         document.getElementById("gate-role-group").style.display = "none";
-        document.getElementById("gate-admin-subroles").style.display = "none";
-        document.getElementById("gate-teacher-classes").style.display = "none";
         document.getElementById("gate-password-group").style.display = "none";
 
         document.querySelectorAll('input[name="primary-role"]').forEach(r => r.checked = false);
-        document.querySelectorAll('input[name="admin-subrole"]').forEach(r => r.checked = false);
-        document.getElementById("gate-class-select").value = "";
 
         pinEntryInput.value = "";
         updateGateTips();
@@ -429,89 +440,46 @@ function handlePinInput() {
     if (!loc || !roleType) return;
 
     if (roleType === "Admin") {
-        const subrole = document.querySelector('input[name="admin-subrole"]:checked')?.value;
-        if (!subrole) return;
-
-        if (val.length === 4) {
-            if (AUTHORIZED_PINS[val]) {
-                const auth = AUTHORIZED_PINS[val];
-
-                // Validate sub-role match
-                let roleMatch = false;
-                if (subrole === "Committee") {
-                    roleMatch = (auth.role === "Committee Member" || auth.role === "President");
-                } else if (subrole === "Principal") {
-                    roleMatch = (auth.role === "Principal");
-                } else if (subrole === "Vice Principal") {
-                    roleMatch = (auth.role === "Vice Principal");
-                } else if (subrole === "Developer") {
-                    roleMatch = (auth.role === "Developer");
-                }
-
-                if (!roleMatch) {
-                    pinErrorMsg.textContent = `❌ Invalid PIN for ${subrole} role.`;
-                    pinErrorMsg.style.display = "block";
-                    pinEntryInput.value = "";
-                    pinEntryInput.focus();
-                    return;
-                }
-
-                // Validate Location Match for location-specific VPs and Principals
-                if ((auth.role === "Principal" || auth.role === "Vice Principal") && auth.location !== loc) {
-                    pinErrorMsg.textContent = `❌ PIN authorized only for ${auth.location}.`;
-                    pinErrorMsg.style.display = "block";
-                    pinEntryInput.value = "";
-                    pinEntryInput.focus();
-                    return;
-                }
-
-                // Successful Admin Login
-                appState.currentUserRole = auth;
-                appState.currentLocation = loc;
-                pinErrorMsg.style.display = "none";
-                pinEntryInput.value = "";
-
-                logActivity(`Access Authorized: ${appState.currentUserRole.name} (${appState.currentUserRole.role}) logged in at ${loc}`);
-                saveStateToLocalStorage();
-                checkAccessGate();
-                updateDateTimeAndRules();
-                renderList();
-            } else {
-                pinErrorMsg.textContent = "❌ Invalid PIN. Access Denied.";
-                pinErrorMsg.style.display = "block";
-                pinEntryInput.value = "";
-                pinEntryInput.focus();
-            }
-        }
-    } else if (roleType === "Teachers") {
-        const cls = document.getElementById("gate-class-select").value;
-        if (!cls) return;
-
-        // Check password match (e.g. LKG123)
-        if (val === CLASS_PASSWORDS[cls]) {
+        if (val.toLowerCase() === "admin") {
+            // Successful Admin Login
             appState.currentUserRole = {
-                role: "Teacher",
-                name: `Teacher (${cls})`,
-                location: loc,
-                grade: cls
+                role: "Developer",
+                name: "Administrator",
+                location: loc
             };
             appState.currentLocation = loc;
             pinErrorMsg.style.display = "none";
             pinEntryInput.value = "";
 
-            logActivity(`Access Authorized: Teacher logged in for ${cls} at ${loc}`);
+            logActivity(`Access Authorized: Administrator logged in at ${loc}`);
             saveStateToLocalStorage();
             checkAccessGate();
             updateDateTimeAndRules();
             renderList();
-        } else {
-            // Don't show error immediately on typing, wait until length matches or Enter is typed
-            if (val.length >= CLASS_PASSWORDS[cls].length) {
-                pinErrorMsg.textContent = "❌ Invalid Password. Access Denied.";
-                pinErrorMsg.style.display = "block";
-                pinEntryInput.value = "";
-                pinEntryInput.focus();
-            }
+        } else if (val.length >= 5) {
+            pinErrorMsg.textContent = "❌ Invalid Password. Access Denied.";
+            pinErrorMsg.style.display = "block";
+        }
+    } else if (roleType === "Teachers") {
+        if (val.toLowerCase() === "teacher") {
+            appState.currentUserRole = {
+                role: "Teacher",
+                name: "Teacher",
+                location: loc,
+                grade: "Nilai 1"
+            };
+            appState.currentLocation = loc;
+            pinErrorMsg.style.display = "none";
+            pinEntryInput.value = "";
+
+            logActivity(`Access Authorized: Teacher logged in at ${loc}`);
+            saveStateToLocalStorage();
+            checkAccessGate();
+            updateDateTimeAndRules();
+            renderList();
+        } else if (val.length >= 7) {
+            pinErrorMsg.textContent = "❌ Invalid Password. Access Denied.";
+            pinErrorMsg.style.display = "block";
         }
     }
 }
@@ -533,12 +501,8 @@ function handleGateSelectionChange() {
         roleGroup.style.display = "block";
     } else {
         roleGroup.style.display = "none";
-        document.getElementById("gate-admin-subroles").style.display = "none";
-        document.getElementById("gate-teacher-classes").style.display = "none";
         document.getElementById("gate-password-group").style.display = "none";
         document.querySelectorAll('input[name="primary-role"]').forEach(r => r.checked = false);
-        document.querySelectorAll('input[name="admin-subrole"]').forEach(r => r.checked = false);
-        document.getElementById("gate-class-select").value = "";
         pinEntryInput.value = "";
     }
     updateGateTips();
@@ -546,44 +510,23 @@ function handleGateSelectionChange() {
 
 function handleRoleTypeChange() {
     const roleType = document.querySelector('input[name="primary-role"]:checked')?.value;
-    const adminGroup = document.getElementById("gate-admin-subroles");
-    const teacherGroup = document.getElementById("gate-teacher-classes");
     const pwdGroup = document.getElementById("gate-password-group");
+    const pwdLabel = document.getElementById("password-label");
 
-    document.querySelectorAll('input[name="admin-subrole"]').forEach(r => r.checked = false);
-    document.getElementById("gate-class-select").value = "";
     pinEntryInput.value = "";
     pinErrorMsg.style.display = "none";
 
     if (roleType === "Admin") {
-        adminGroup.style.display = "block";
-        teacherGroup.style.display = "none";
-        pwdGroup.style.display = "none";
-        pinEntryInput.placeholder = "••••";
+        pwdGroup.style.display = "block";
+        pwdLabel.textContent = `🔑 Enter Admin Password:`;
+        pinEntryInput.type = "password";
+        pinEntryInput.placeholder = "Password";
+        pinEntryInput.focus();
     } else if (roleType === "Teachers") {
-        adminGroup.style.display = "none";
-        teacherGroup.style.display = "block";
-        pwdGroup.style.display = "none";
-        pinEntryInput.placeholder = "Enter Class Password";
-    } else {
-        adminGroup.style.display = "none";
-        teacherGroup.style.display = "none";
-        pwdGroup.style.display = "none";
-    }
-    updateGateTips();
-}
-
-function handleSubroleChange() {
-    const subrole = document.querySelector('input[name="admin-subrole"]:checked')?.value;
-    const pwdGroup = document.getElementById("gate-password-group");
-    const pwdLabel = document.getElementById("password-label");
-
-    pinEntryInput.value = "";
-    pinErrorMsg.style.display = "none";
-
-    if (subrole) {
         pwdGroup.style.display = "block";
-        pwdLabel.textContent = `🔑 Enter ${subrole} 4-Digit PIN:`;
+        pwdLabel.textContent = `🔑 Enter Teacher Password:`;
+        pinEntryInput.type = "password";
+        pinEntryInput.placeholder = "Password";
         pinEntryInput.focus();
     } else {
         pwdGroup.style.display = "none";
@@ -591,22 +534,15 @@ function handleSubroleChange() {
     updateGateTips();
 }
 
-function handleClassChangeForGate() {
-    const cls = document.getElementById("gate-class-select").value;
-    const pwdGroup = document.getElementById("gate-password-group");
-    const pwdLabel = document.getElementById("password-label");
-
-    pinEntryInput.value = "";
-    pinErrorMsg.style.display = "none";
-
-    if (cls) {
-        pwdGroup.style.display = "block";
-        pwdLabel.textContent = `🔑 Enter Password for ${cls}:`;
-        pinEntryInput.focus();
-    } else {
-        pwdGroup.style.display = "none";
+function handleMainClassChange() {
+    if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
+        const cls = document.getElementById("main-class-select").value;
+        appState.currentUserRole.grade = cls;
+        logActivity(`Teacher switched view to class: ${cls}`);
+        saveStateToLocalStorage();
+        checkAccessGate();
+        renderList();
     }
-    updateGateTips();
 }
 
 function updateGateTips() {
@@ -614,25 +550,9 @@ function updateGateTips() {
     const roleType = document.querySelector('input[name="primary-role"]:checked')?.value;
 
     if (roleType === "Admin") {
-        const subrole = document.querySelector('input[name="admin-subrole"]:checked')?.value;
-        if (subrole === "Committee") {
-            tipsDiv.innerHTML = "<p>💡 President PIN: <strong>9900</strong> | Committee PINs: <strong>1001-1007</strong></p>";
-        } else if (subrole === "Principal") {
-            tipsDiv.innerHTML = "<p>💡 Chennai: <strong>9001</strong> | Madurai: <strong>9002</strong> | Kovai: <strong>9003</strong> | Nellai: <strong>9004</strong></p>";
-        } else if (subrole === "Vice Principal") {
-            tipsDiv.innerHTML = "<p>💡 Riverview VP: <strong>9101–9104</strong></p>";
-        } else if (subrole === "Developer") {
-            tipsDiv.innerHTML = "<p>🛠️ Developer PIN: <strong>9999</strong></p>";
-        } else {
-            tipsDiv.innerHTML = "<p>💡 Select an Admin role above to see PIN tips.</p>";
-        }
+        tipsDiv.innerHTML = "<p>💡 Admin password is: <strong>admin</strong></p>";
     } else if (roleType === "Teachers") {
-        const cls = document.getElementById("gate-class-select").value;
-        if (cls) {
-            tipsDiv.innerHTML = `<p>💡 Teacher Password for <strong>${cls}</strong> is: <strong>${CLASS_PASSWORDS[cls]}</strong></p>`;
-        } else {
-            tipsDiv.innerHTML = "<p>💡 Select a class above to see the password tip.</p>";
-        }
+        tipsDiv.innerHTML = "<p>💡 Teacher password is: <strong>teacher</strong></p>";
     } else {
         tipsDiv.innerHTML = "";
     }
@@ -1196,9 +1116,8 @@ function buildRosterFromWorkbook(workbook) {
                     isTeacher = true;
                 }
             } else {
-                // No DOB - likely a teacher (most students have DOB)
-                // Unless it's a string date like "March 14th" (special cases in illanthalir)
-                isTeacher = true;
+                // No DOB - if we are in the student section, it's a student with a missing DOB
+                isTeacher = false;
             }
 
             if (isTeacher) continue;

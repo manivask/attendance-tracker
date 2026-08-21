@@ -43,49 +43,7 @@
                 </div>
             </div>
 
-            <!-- Step 3a: Admin Sub-Roles (Hidden initially) -->
-            <div class="form-group" id="gate-admin-subroles" style="text-align: left; margin-bottom: 12px; display: none;">
-                <label style="font-weight: 600; display: block; margin-bottom: 6px;">🛠️ Admin Role:</label>
-                <div style="display: flex; flex-wrap: wrap; gap: 16px;">
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
-                        <input type="radio" name="admin-subrole" value="Committee" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
-                        <span>Committee / President</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
-                        <input type="radio" name="admin-subrole" value="Principal" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
-                        <span>Principal</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
-                        <input type="radio" name="admin-subrole" value="Vice Principal" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
-                        <span>Vice Principal</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.9rem;">
-                        <input type="radio" name="admin-subrole" value="Developer" onchange="handleSubroleChange()" style="accent-color: var(--accent-color);">
-                        <span>🛠 Developer Mode</span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Step 3b: Teacher Class Selection (Hidden initially) -->
-            <div class="form-group" id="gate-teacher-classes" style="text-align: left; margin-bottom: 12px; display: none;">
-                <label for="gate-class-select" style="font-weight: 600; display: block; margin-bottom: 6px;">🎓 Class / Grade:</label>
-                <select id="gate-class-select" class="gate-select" onchange="handleClassChangeForGate()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); outline: none;">
-                    <option value="">-- Select Class --</option>
-                    <option value="Ilanthalir">Ilanthalir (Room 126)</option>
-                    <option value="Mazhalai">Mazhalai (Room 116)</option>
-                    <option value="Nilai 1">Nilai 1 (Room 118)</option>
-                    <option value="Nilai 2A">Nilai 2A (Room 122)</option>
-                    <option value="Nilai 2B">Nilai 2B (Room 125)</option>
-                    <option value="Nilai 3A">Nilai 3A (Room 124)</option>
-                    <option value="Nilai 3B">Nilai 3B (Room 127)</option>
-                    <option value="Nilai 4A">Nilai 4A (Room 129)</option>
-                    <option value="Nilai 4B">Nilai 4B (Room 130)</option>
-                    <option value="Nilai 5">Nilai 5 (Room 120)</option>
-                    <option value="Nilai 6">Nilai 6 (Room 115)</option>
-                    <option value="Nilai 7">Nilai 7 (Room 117)</option>
-                    <option value="Nilai 8">Nilai 8 (Room 111)</option>
-                </select>
-            </div>
+            <!-- Step 3a/3b: Removed -->
 
             <!-- Step 4: PIN/Password Entry (Hidden initially) -->
             <div class="form-group" id="gate-password-group" style="text-align: center; margin-top: 12px; display: none;">
@@ -224,6 +182,25 @@
                     <label for="location-select">📍 School Location:</label>
                     <select id="location-select" onchange="handleLocationChange()">
                         <option value="Riverview">Riverview</option>
+                    </select>
+                </div>
+                
+                <div class="class-picker" id="main-class-picker" style="display: none; margin-left: 16px;">
+                    <label for="main-class-select" style="font-weight: 600;">🎓 Class / Grade:</label>
+                    <select id="main-class-select" onchange="handleMainClassChange()" style="padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); margin-left: 8px;">
+                        <option value="Ilanthalir">Ilanthalir (Room 126)</option>
+                        <option value="Mazhalai">Mazhalai (Room 116)</option>
+                        <option value="Nilai 1">Nilai 1 (Room 118)</option>
+                        <option value="Nilai 2A">Nilai 2A (Room 122)</option>
+                        <option value="Nilai 2B">Nilai 2B (Room 125)</option>
+                        <option value="Nilai 3A">Nilai 3A (Room 124)</option>
+                        <option value="Nilai 3B">Nilai 3B (Room 127)</option>
+                        <option value="Nilai 4A">Nilai 4A (Room 129)</option>
+                        <option value="Nilai 4B">Nilai 4B (Room 130)</option>
+                        <option value="Nilai 5">Nilai 5 (Room 120)</option>
+                        <option value="Nilai 6">Nilai 6 (Room 115)</option>
+                        <option value="Nilai 7">Nilai 7 (Room 117)</option>
+                        <option value="Nilai 8">Nilai 8 (Room 111)</option>
                     </select>
                 </div>
 
