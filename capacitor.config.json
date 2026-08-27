@@ -1,0 +1,6 @@
+{
+  "appId": "com.tbta.attendance",
+  "appName": "Attendance Tracker",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
