@@ -1,34 +1,21 @@
-# Testing & Deployment Instructions (V4 - Master Lock Bypass)
+# Testing & Deployment Instructions (TBTA Attendance Portal)
 
-This guide explains how to test the updated Tamil School Attendance Portal on Windows and how to transfer/use it on your Android tablet or mobile device.
+This guide explains how to test the TBTA Attendance Portal on Windows and how to use it on your mobile devices/tablets.
 
 ---
 
-## 🔑 Security PIN Setup for Testing
-The app implements a security gate overlay. You must enter one of the following **4-digit authorization PINs** to access the dashboard or submit attendance:
+## 🔑 Login Access Gate Credentials
 
-| Personnel Role | Authorized 4-digit PIN | Name | School Assignment / Location |
+The app implements a simplified role-based security gate. Select **Riverview** school location and your role:
+
+| Personnel Role | Role Selection | Password | Access Level & Features |
 | :--- | :--- | :--- | :--- |
-| **President** | `9900` | Senthamil Arasan | Committee President (Global view) |
-| **Principal (Cholai)** | `9001` | Kavin Selvam | Chennai Cholai |
-| **Principal (Malar)** | `9002` | Ezhil Tamilarasan | Madurai Malar |
-| **Principal (Kani)** | `9003` | Kailash Balan | Kovai Kani |
-| **Principal (Neer)** | `9004` | Mugilan Pugazh | Nellai Neer |
-| **VP (Cholai)** | `9101` | Amudha Kumar | Chennai Cholai |
-| **VP (Malar)** | `9102` | Kamali Chitra | Madurai Malar |
-| **VP (Kani)** | `9103` | Yazhini Nila | Kovai Kani |
-| **VP (Neer)** | `9104` | Oviya Thenmozhi | Nellai Neer |
-| **Committee Member 2** | `1001` | Bharathi Raja | Global Staff |
-| **Committee Member 3** | `1002` | Elango Mani | Global Staff |
-| *Others (up to Member 8)* | `1003` to `1007` | (Various Members) | Global Staff |
-
-*Note: The committee is formed of 8 members total: 1 President + 7 Committee Members.*
+| **Teacher** | Teacher | `teacher` | - Restricted to assigned class view with grade picker (Ilanthalir through Nilai 8)<br>- Student roster & assigned teachers display<br>- Interactive P/A attendance toggling<br>- Student details profile modal popup<br>- One-click class attendance submission |
+| **Administrator** | Administrator / Admin | `admin` | - Full school-wide access across all classes<br>- Students, Teachers, and Committee tabs<br>- Developer date simulation panel & admin date picker<br>- Principal & Vice Principal attestation controls<br>- Real-time activity audit logs<br>- Excel spreadsheet export and email submission |
 
 ---
 
 ## 💻 1. How to Test on Windows
-
-Since this is a lightweight, frontend-only application (HTML + CSS + JavaScript + SheetJS), you can test it directly on Windows:
 
 ### Option A: Local Python Web Server (Recommended)
 1. Open PowerShell and navigate to the directory:
@@ -45,41 +32,43 @@ Since this is a lightweight, frontend-only application (HTML + CSS + JavaScript 
    ```
 
 ### Option B: Open `index.html` Directly
-You can also simply double-click the [index.html](file:///c:/Users/maniv/all_ide_code_ws/apps/attendance-tracker/index.html) file to open it in Chrome, Edge, or Firefox.
+You can also double-click the [index.html](file:///c:/Users/maniv/all_ide_code_ws/apps/attendance-tracker/index.html) file to open it directly in Chrome, Edge, or Firefox.
 
 ---
 
-## 📱 2. How to Transfer and Run on an Android Tab / Mobile
-
-To run the app on Android:
+## 📱 2. How to Transfer and Run on an Android Tablet / Mobile
 
 ### Option A: Transfer Files & Run via Android Web Browser (Offline-capable)
-1. Copy the entire `attendance-tracker` folder from your PC to your tablet's storage (e.g., in a folder named `AttendanceApp` on your internal storage).
-2. On your Android device, open a local file browser (like *CX File Explorer* or *Files by Google*).
-3. Open the folder, tap on `index.html`, and select Chrome or your preferred browser to run the app.
+1. Copy the entire `attendance-tracker` folder to your tablet's internal storage (e.g., `AttendanceApp`).
+2. Open a local file browser app (like *CX File Explorer* or *Files by Google*).
+3. Tap on `index.html` and select Chrome or your preferred browser.
 
 ### Option B: Local Web Server App on Android (Best Experience)
-1. Download a free app such as **"Simple HTTP Server"** from the Google Play Store.
-2. Select the copied `attendance-tracker` directory in the app and press **Start**.
-3. It will give you a local IP address (e.g., `http://127.0.0.1:8080`). Open this address in Chrome on your tablet.
+1. Download **"Simple HTTP Server"** from Google Play Store.
+2. Select the `attendance-tracker` directory in the app and press **Start**.
+3. Open the displayed local IP address (e.g., `http://127.0.0.1:8080`) in Chrome on your tablet.
 
 ---
 
-## 🧪 3. Validation Scenarios
+## 🧪 3. Complete Validation Scenarios
 
-Use the **Testing & Date Simulation Dashboard** at the top of the app to validate these key scenarios:
+### Scenario 1: Teacher Experience
+1. On the gate screen, select **Riverview** -> select **Teacher**.
+2. Type password `teacher`.
+3. Verify that the **Class / Grade** selector appears (defaulting to *Nilai 1*).
+4. Verify the student list and assigned teachers load cleanly.
+5. Click any **Student ID** (e.g. `S001` or `S033`) to open the **Student Profile Modal** displaying avatar, Tamil name, parent contacts, DOB, and room number.
+6. Toggle attendance (click **P** or **A**), and confirm Present/Absent counters update immediately.
+7. Click **✉️ Submit Class Attendance** and verify submission.
+8. Click **🔒 Logout** to return to the gate screen.
 
-### Scenario 1: Clean Names Format
-1. Log in with PIN `9900` (President).
-2. Check the students list. Notice that name formatting contains only clean First and Last names without middle initials (e.g. "Aadhavan Kumar" instead of "Aadhavan A. Kumar").
-3. Inspect the Committee tab to confirm the 8-member setup (1 President + 7 members).
+### Scenario 2: Administrator Experience
+1. On the gate screen, select **Riverview** -> select **Administrator / Admin**.
+2. Type password `admin`.
+3. Verify all three tabs are visible: **Students**, **Teachers**, and **Committee**.
+4. Test search bar filtering (e.g. search by student name) and status filters (**All**, **Present**, **Absent**, **Unmarked**).
+5. Check the **Official Verification & Attestation** checkboxes (Vice Principal and Principal sign-offs).
+6. Toggle Theme button (☀️ / 🌙) to switch between Light and Dark mode.
+7. Expand the **📋 Real-Time Activity Audit Logs** at the bottom to verify complete history of operations.
+8. Click **💾 Export Excel Sheet** to verify SheetJS export functionality.
 
-### Scenario 2: Master Lock Correction Bypass (Principal/VP)
-1. Select a simulated date (e.g. Friday, 7:30 PM).
-2. Check attestations and submit attendance using a Principal PIN (e.g., `9001`). This locks the date records.
-3. Log out, then log in using a regular Committee Member PIN (e.g., `1001`).
-4. Select the locked date and verify that you **cannot** make edits. The buttons are disabled.
-5. Log out again, then log in using a Principal PIN (e.g., `9001`) or VP PIN (e.g., `9101`).
-6. Select the locked date. Verify that the attendance toggles are **enabled** and interactive.
-7. Change a student's status. Open the **Audit Logs** at the bottom and verify it has logged a special lock correction entry starting with `LOCKED CORRECTION: ...`.
-8. Click **Re-Submit Attendance (Correction)** to finalize.

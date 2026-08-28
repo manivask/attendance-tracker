@@ -9,6 +9,8 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: false
 
     steps:
       - name: Checkout repository
@@ -17,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -34,9 +36,8 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          cp index.html app.js style.css manifest.json *.xlsx www/
-          # copy any other necessary files if they exist, e.g. assets folder
-          # cp -r assets www/ || true
+          cp index.html app.js style.css manifest.json *.xlsx www/ || true
+          cp -r assets www/ || true
 
       - name: Sync Capacitor
         run: npx cap sync android

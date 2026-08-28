@@ -212,10 +212,12 @@ function checkAccessGate() {
         document.getElementById("simulation-panel").style.display = "none";
         document.getElementById("file-operations-section").style.display = "none";
 
-        // Reset overlay controls
-        document.getElementById("gate-location").value = "";
-        document.getElementById("gate-role-group").style.display = "none";
-        document.getElementById("gate-password-group").style.display = "none";
+        // Reset overlay controls - default to Riverview so role selection is readily available
+        const gateLoc = document.getElementById("gate-location");
+        if (gateLoc) {
+            gateLoc.value = "Riverview";
+        }
+        handleGateSelectionChange();
 
         document.querySelectorAll('input[name="primary-role"]').forEach(r => r.checked = false);
 
@@ -391,9 +393,9 @@ function initializeDefaultAttendanceForClass() {
 }
 
 function handlePinInput() {
-    const loc = document.getElementById("gate-location").value;
+    const loc = document.getElementById("gate-location").value || "Riverview";
     const roleType = document.querySelector('input[name="primary-role"]:checked')?.value;
-    const val = pinEntryInput.value;
+    const val = (pinEntryInput.value || "").trim();
 
     if (!loc || !roleType) return;
 
@@ -783,12 +785,17 @@ function setQuickScenario(dateStr, timeStr) {
 let masterStudentList = null;
 
 function loadMasterList() {
-    return fetch("TBTA-2026- 27- Riverview High School-Students  list.xlsx")
+    if (typeof XLSX === "undefined") {
+        console.warn("XLSX library not loaded, skipping master list");
+        return Promise.resolve();
+    }
+    return fetch(encodeURI("TBTA-2026- 27- Riverview High School-Students  list.xlsx"))
         .then(response => {
             if (!response.ok) throw new Error("Master list not found");
             return response.arrayBuffer();
         })
         .then(ab => {
+            if (typeof XLSX === "undefined") return;
             const data = new Uint8Array(ab);
             masterStudentList = XLSX.read(data, { type: 'array', cellDates: true });
             console.log("Master list loaded successfully.");
@@ -903,13 +910,18 @@ function handleExcelFile(file) {
 }
 
 function loadDefaultWorkbook() {
+    if (typeof XLSX === "undefined") {
+        console.warn("XLSX library not loaded, skipping default workbook");
+        return;
+    }
     loadMasterList().then(() => {
-        fetch("TBTA-2026-2027- RHS-Student_Attendance.xlsx")
+        fetch(encodeURI("TBTA-2026-2027- RHS-Student_Attendance.xlsx"))
             .then(response => {
                 if (!response.ok) throw new Error("Local sheet not found");
                 return response.arrayBuffer();
             })
             .then(ab => {
+                if (typeof XLSX === "undefined") return;
                 const data = new Uint8Array(ab);
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 appState.workbook = workbook;
@@ -924,6 +936,8 @@ function loadDefaultWorkbook() {
             .catch(err => {
                 console.warn("Could not auto-load academic Excel sheet:", err);
             });
+    }).catch(err => {
+        console.warn("Error in loadMasterList promise:", err);
     });
 }
 
@@ -1796,46 +1810,60 @@ if (localStorage.getItem("attendance_tracker_theme") === "light") {
 
 function renderDashboard() {
     const activeDate = getActiveDateString();
-    let present = 0; let absent = 0; let total = 0;
+    let present = 0;
+    let absent = 0;
+    let total = 0;
     const classStats = {};
 
     appState.students.forEach(s => {
         if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
         const status = appState.attendance.Students[activeDate]?.[s.ID];
-        if (status === " present\ || status === \absent\) {
- total++; classStats[s.Grade].total++;
- if (status === \present\) { present++; classStats[s.Grade].present++; }
- if (status === \absent\) absent++;
- }
- });
+        if (status === "present" || status === "absent") {
+            total++;
+            classStats[s.Grade].total++;
+            if (status === "present") {
+                present++;
+                classStats[s.Grade].present++;
+            }
+            if (status === "absent") absent++;
+        }
+    });
 
- const overallPct = total > 0 ? Math.round((present / total) * 100) + \%\ : \No Data\;
- document.getElementById(\kpi-overall\).textContent = overallPct;
+    const overallPct = total > 0 ? Math.round((present / total) * 100) + "%" : "No Data";
+    const kpiOverall = document.getElementById("kpi-overall");
+    if (kpiOverall) kpiOverall.textContent = overallPct;
 
- const classList = document.getElementById(\kpi-class-list\);
- classList.innerHTML = \\;
- for (const [grade, stats] of Object.entries(classStats)) {
- if (stats.total > 0) {
- const pct = Math.round((stats.present / stats.total) * 100);
- const li = document.createElement(\li\);
- li.style.marginBottom = \8px\;
- li.innerHTML = <strong>:</strong> % (/);
- classList.appendChild(li);
- }
- }
+    const classList = document.getElementById("kpi-class-list");
+    if (classList) {
+        classList.innerHTML = "";
+        for (const [grade, stats] of Object.entries(classStats)) {
+            if (stats.total > 0) {
+                const pct = Math.round((stats.present / stats.total) * 100);
+                const li = document.createElement("li");
+                li.style.marginBottom = "8px";
+                li.innerHTML = `<strong>${grade}:</strong> ${pct}% (${stats.present}/${stats.total})`;
+                classList.appendChild(li);
+            }
+        }
+    }
 
- if (window.kpiChart) window.kpiChart.destroy();
- const ctx = document.getElementById(\kpi-pie-chart\).getContext(\2d\);
- window.kpiChart = new Chart(ctx, {
- type: \pie\,
- data: {
- labels: [\Present\, \Absent\],
- datasets: [{
- data: [present, absent],
- backgroundColor: [\#10b981\, \#ef4444\]
- }]
- }
- });
+    if (window.Chart) {
+        if (window.kpiChart) window.kpiChart.destroy();
+        const chartCanvas = document.getElementById("kpi-pie-chart");
+        if (chartCanvas) {
+            const ctx = chartCanvas.getContext("2d");
+            window.kpiChart = new Chart(ctx, {
+                type: "pie",
+                data: {
+                    labels: ["Present", "Absent"],
+                    datasets: [{
+                        data: [present, absent],
+                        backgroundColor: ["#10b981", "#ef4444"]
+                    }]
+                }
+            });
+        }
+    }
 }
 
 function updateRosterItem(type, id, field, value) {
