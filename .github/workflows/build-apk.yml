@@ -34,7 +34,7 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          cp index.html app.js style.css manifest.json www/
+          cp index.html app.js style.css manifest.json *.xlsx www/
           # copy any other necessary files if they exist, e.g. assets folder
           # cp -r assets www/ || true
 
