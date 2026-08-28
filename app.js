@@ -375,19 +375,12 @@ function initializeDefaultAttendanceForClass() {
 
     let initializedAny = false;
     appState.students.forEach(s => {
-        if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
-        Object.keys(appState.attendance.Students).forEach(date => {
-            const status = appState.attendance.Students[date]?.[s.ID];
-            if (status === "present" || status === "absent") {
-                total++;
-                classStats[s.Grade].total++;
-                if (status === "present") {
-                    present++;
-                    classStats[s.Grade].present++;
-                }
-                if (status === "absent") absent++;
+        if (s.Location === loc && s.Grade === grade) {
+            if (!appState.attendance.Students[activeDate][s.ID]) {
+                appState.attendance.Students[activeDate][s.ID] = "present";
+                initializedAny = true;
             }
-        });
+        }
     });
 
     appState.teachers.forEach(t => {
