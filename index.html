@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#111827">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
     <title>TBTA Attendance Portal</title>
     <link rel="stylesheet" href="style.css">
     <!-- Google Fonts -->
@@ -62,8 +67,8 @@
 
     <!-- Student Profile Popup Modal -->
     <div id="student-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeStudentModal(event)">
-        <div class="student-modal-card" id="student-modal-card">
-            <button class="modal-close-btn" onclick="closeStudentModal()">✕</button>
+        <div class="student-modal-card" id="student-modal-card" onclick="event.stopPropagation()">
+            <button class="modal-close-btn" onclick="closeStudentModal(event)">✕</button>
             <div class="modal-avatar-section" id="modal-avatar-section">
                 <div class="modal-avatar" id="modal-avatar">🧒</div>
                 <div class="avatar-glow" id="avatar-glow"></div>
@@ -214,6 +219,12 @@
                     <button class="tab-btn" id="tab-committee" onclick="switchTab('Committee')">
                         👥 Committee <span class="badge" id="badge-committee">11</span>
                     </button>
+                    <button class="tab-btn" id="tab-admin-roster" onclick="switchTab('AdminRoster')" style="display:none;">
+                        📋 Admin Roster
+                    </button>
+                    <button class="tab-btn" id="tab-dashboard" onclick="switchTab('Dashboard')" style="display:none;">
+                        📊 Dashboard
+                    </button>
                 </div>
             </section>
 
@@ -232,7 +243,7 @@
             </section>
 
             <!-- Attendance List Card -->
-            <section class="attendance-card card">
+            <section class="attendance-card card" id="attendance-section">
                 <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
                     <div>
                         <h2 id="current-sheet-title">Students List</h2>
@@ -290,6 +301,26 @@
                 </div>
             </section>
 
+            <!-- Dashboard Section -->
+            <section class="dashboard-card card" id="dashboard-section" style="display: none;">
+                <h3>📊 KPIs & Attendance Dashboard</h3>
+                <div class="dashboard-stats" style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <div class="stat-box" style="flex: 1; padding: 15px; background: var(--bg-secondary); border-radius: 8px; text-align: center;">
+                        <h4 style="margin:0 0 10px 0; color: var(--text-secondary);">Overall Attendance</h4>
+                        <strong id="kpi-overall" style="font-size: 24px; color: var(--text-primary);">-</strong>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <canvas id="kpi-pie-chart" width="400" height="200"></canvas>
+                    </div>
+                    <div style="flex: 1; min-width: 300px;">
+                        <h4 style="margin:0 0 10px 0; color: var(--text-secondary);">By Class</h4>
+                        <ul id="kpi-class-list" style="list-style: none; padding: 0; margin: 0; color: var(--text-primary);"></ul>
+                    </div>
+                </div>
+            </section>
+
             <!-- Audit Logs Card -->
             <section class="audit-logs-card card" id="audit-section">
                 <div class="audit-header" onclick="toggleAuditLogs()">
@@ -323,6 +354,7 @@
 
 
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

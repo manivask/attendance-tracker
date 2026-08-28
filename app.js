@@ -1,32 +1,3 @@
-// Authorized Personnel PIN Mapping
-const AUTHORIZED_PINS = {
-    "9900": { role: "President", name: "Senthamil Arasan" },
-
-    // Principals
-    "9001": { role: "Principal", name: "Kavin Selvam", location: "Riverview" },
-    "9002": { role: "Principal", name: "Ezhil Tamilarasan", location: "Riverview" },
-    "9003": { role: "Principal", name: "Kailash Balan", location: "Riverview" },
-    "9004": { role: "Principal", name: "Mugilan Pugazh", location: "Riverview" },
-
-    // Vice Principals
-    "9101": { role: "Vice Principal", name: "Amudha Kumar", location: "Riverview" },
-    "9102": { role: "Vice Principal", name: "Kamali Chitra", location: "Riverview" },
-    "9103": { role: "Vice Principal", name: "Yazhini Nila", location: "Riverview" },
-    "9104": { role: "Vice Principal", name: "Oviya Thenmozhi", location: "Riverview" },
-
-    // Committee Members
-    "1001": { role: "Committee Member", name: "Bharathi Raja" },
-    "1002": { role: "Committee Member", name: "Elango Mani" },
-    "1003": { role: "Committee Member", name: "Kavitha Sundar" },
-    "1004": { role: "Committee Member", name: "Muthu Pandian" },
-    "1005": { role: "Committee Member", name: "Nila Govindan" },
-    "1006": { role: "Committee Member", name: "Selvam Nambi" },
-    "1007": { role: "Committee Member", name: "Senthamil Thambi" },
-
-    // Developer Mode
-    "9999": { role: "Developer", name: "Developer Mode" }
-};
-
 const LOCATIONS = ["Riverview"];
 
 // All classes including pre-school classes and sectioned grades
@@ -42,23 +13,6 @@ const GRADES = [
     "Nilai 7",
     "Nilai 8"
 ];
-
-// Password for each class (teachers log in with these)
-const CLASS_PASSWORDS = {
-    "Ilanthalir": "2000",
-    "Mazhalai":   "2000",
-    "Nilai 1":    "2001",
-    "Nilai 2A":   "2002",
-    "Nilai 2B":   "2002",
-    "Nilai 3A":   "2003",
-    "Nilai 3B":   "2003",
-    "Nilai 4A":   "2004",
-    "Nilai 4B":   "2004",
-    "Nilai 5":    "2005",
-    "Nilai 6":    "2006",
-    "Nilai 7":    "2007",
-    "Nilai 8":    "2008"
-};
 
 // Room number mapping (populated from Teacher sheet in Excel)
 const CLASS_ROOMS = {
@@ -212,6 +166,8 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "none";
+                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "none";
+                if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "none";
                 if (appState.currentTab === "Committee") {
                     switchTab("Students");
                 }
@@ -238,6 +194,8 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "inline-block";
+                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "inline-block";
+                if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "inline-block";
             }
             // Hide main class picker for Admin since they can see all classes
             const mainClassPicker = document.getElementById("main-class-picker");
@@ -1319,10 +1277,16 @@ function getActiveDateString() {
 
     const dayOfWeek = now.getDay();
     let effectiveDate = new Date(now);
-    if (dayOfWeek !== 5) {
-        const daysToFriday = (5 - dayOfWeek + 7) % 7;
-        effectiveDate.setDate(now.getDate() + daysToFriday);
+    
+    if (dayOfWeek === 6) { 
+        effectiveDate.setDate(now.getDate() - 1); // Saturday -> Friday
+    } else if (dayOfWeek === 0) { 
+        effectiveDate.setDate(now.getDate() - 2); // Sunday -> Friday
+    } else if (dayOfWeek !== 5) {
+        const daysToFriday = 5 - dayOfWeek;
+        effectiveDate.setDate(now.getDate() + daysToFriday); // Mon-Thu -> Friday
     }
+    
     return effectiveDate.toISOString().split('T')[0];
 }
 
@@ -1366,9 +1330,24 @@ function switchTab(tabName) {
     document.getElementById("tab-students").classList.toggle("active", tabName === "Students");
     document.getElementById("tab-teachers").classList.toggle("active", tabName === "Teachers");
     document.getElementById("tab-committee").classList.toggle("active", tabName === "Committee");
+    if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").classList.toggle("active", tabName === "AdminRoster");
+    if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").classList.toggle("active", tabName === "Dashboard");
 
-    currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : "Committee Roster";
-    thInfo.textContent = tabName === "Students" ? "Grade" : tabName === "Teachers" ? "Class Assignment" : "Role";
+    const attendanceSec = document.getElementById("attendance-section");
+    const dashboardSec = document.getElementById("dashboard-section");
+
+    if (tabName === "Dashboard") {
+        attendanceSec.style.display = "none";
+        dashboardSec.style.display = "block";
+        renderDashboard();
+        return;
+    } else {
+        attendanceSec.style.display = "block";
+        dashboardSec.style.display = "none";
+    }
+
+    currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : tabName === "AdminRoster" ? "Admin Roster Editor" : "Committee Roster";
+    thInfo.textContent = tabName === "Students" ? "Grade" : (tabName === "Teachers" || tabName === "AdminRoster") ? "Class Assignment" : "Role";
 
     const gridBar = document.getElementById("grid-controls-bar");
     const statusFiltersGroup = document.getElementById("status-filters-group");
@@ -1379,6 +1358,11 @@ function switchTab(tabName) {
         gridBar.style.display = "none";
         selectionStatsGroup.style.display = "none";
         thStatusCol.textContent = "Status Check";
+    } else if (tabName === "AdminRoster") {
+        gridBar.style.display = "flex";
+        statusFiltersGroup.style.display = "none";
+        selectionStatsGroup.style.display = "none";
+        thStatusCol.textContent = "Action";
     } else {
         gridBar.style.display = "flex";
         statusFiltersGroup.style.display = "flex";
@@ -1458,6 +1442,25 @@ function renderList() {
             attendanceTbody.appendChild(tr);
         });
         document.getElementById("empty-state").style.display = "none";
+        return;
+    }
+
+    if (tab === "AdminRoster") {
+        attendanceTbody.innerHTML = "";
+        // Just show all students for now, with a basic delete/edit button (we will add edit functionality)
+        appState.students.forEach(item => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>${item.ID}</strong></td>
+                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Students', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px;"></td>
+                <td><input type="text" value="${item.Grade}" onchange="updateRosterItem('Students', '${item.ID}', 'Grade', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px;"></td>
+                <td class="center-align">
+                    <button class="btn btn-secondary" onclick="deleteRosterItem('Students', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color);">Delete</button>
+                </td>
+            `;
+            attendanceTbody.appendChild(tr);
+        });
+        document.getElementById("empty-state").style.display = appState.students.length === 0 ? "block" : "none";
         return;
     }
 
@@ -1647,18 +1650,18 @@ function submitAttendance() {
         if (!confirmSubmit) return;
     }
 
-    const confirmPin = prompt("Enter your 4-digit authorization PIN to sign and submit today's attendance:");
+    const confirmPin = prompt("Enter your Admin password to sign and submit today's attendance:");
     if (!confirmPin) {
-        alert("Submission cancelled. PIN is required.");
+        alert("Submission cancelled. Password is required.");
         return;
     }
 
-    if (!AUTHORIZED_PINS[confirmPin]) {
-        alert("Invalid PIN. Submission aborted.");
+    if (confirmPin.toLowerCase() !== "admin") {
+        alert("Invalid Password. Submission aborted.");
         return;
     }
 
-    const signingUser = AUTHORIZED_PINS[confirmPin];
+    const signingUser = { name: "Administrator", role: "Developer" };
 
     if (!appState.lockedDates.includes(activeDate)) {
         appState.lockedDates.push(activeDate);
@@ -1789,4 +1792,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
 if (localStorage.getItem("attendance_tracker_theme") === "light") {
     document.body.classList.remove("dark-mode");
+}
+
+function renderDashboard() {
+    const activeDate = getActiveDateString();
+    let present = 0; let absent = 0; let total = 0;
+    const classStats = {};
+
+    appState.students.forEach(s => {
+        if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
+        const status = appState.attendance.Students[activeDate]?.[s.ID];
+        if (status === " present\ || status === \absent\) {
+ total++; classStats[s.Grade].total++;
+ if (status === \present\) { present++; classStats[s.Grade].present++; }
+ if (status === \absent\) absent++;
+ }
+ });
+
+ const overallPct = total > 0 ? Math.round((present / total) * 100) + \%\ : \No Data\;
+ document.getElementById(\kpi-overall\).textContent = overallPct;
+
+ const classList = document.getElementById(\kpi-class-list\);
+ classList.innerHTML = \\;
+ for (const [grade, stats] of Object.entries(classStats)) {
+ if (stats.total > 0) {
+ const pct = Math.round((stats.present / stats.total) * 100);
+ const li = document.createElement(\li\);
+ li.style.marginBottom = \8px\;
+ li.innerHTML = <strong>:</strong> % (/);
+ classList.appendChild(li);
+ }
+ }
+
+ if (window.kpiChart) window.kpiChart.destroy();
+ const ctx = document.getElementById(\kpi-pie-chart\).getContext(\2d\);
+ window.kpiChart = new Chart(ctx, {
+ type: \pie\,
+ data: {
+ labels: [\Present\, \Absent\],
+ datasets: [{
+ data: [present, absent],
+ backgroundColor: [\#10b981\, \#ef4444\]
+ }]
+ }
+ });
+}
+
+function updateRosterItem(type, id, field, value) {
+    const list = type === 'Students' ? appState.students : appState.teachers;
+    const item = list.find(x => x.ID === id);
+    if (item) {
+        item[field] = value;
+        saveStateToLocalStorage();
+    }
+}
+
+function deleteRosterItem(type, id) {
+    if (confirm('Are you sure you want to delete this record?')) {
+        if (type === 'Students') appState.students = appState.students.filter(x => x.ID !== id);
+        else appState.teachers = appState.teachers.filter(x => x.ID !== id);
+        saveStateToLocalStorage();
+        renderList();
+    }
 }
