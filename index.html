@@ -162,25 +162,7 @@
             </section>
 
             <!-- Excel File Upload / Template download (Developer Mode only) -->
-            <section class="file-operations card" id="file-operations-section">
-                <div class="drop-zone" id="drop-zone">
-                    <span class="drop-icon">📊</span>
-                    <div class="drop-text">
-                        <p class="main-text">Drag &amp; drop your Excel attendance spreadsheet here or <strong>browse files</strong></p>
-                        <p class="sub-text">Supports .xlsx and .xls formats</p>
-                    </div>
-                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display: none;">
-                </div>
-                <div class="template-actions">
-                    <button class="btn btn-secondary" onclick="generateSampleExcelTemplate()">
-                        📥 Download Blank Template
-                    </button>
-                    <div class="file-info-bar" id="file-info-bar" style="display: none;">
-                        <span class="file-name" id="loaded-file-name">template.xlsx</span>
-                        <button class="btn btn-text btn-danger" onclick="clearLoadedFile()">Remove</button>
-                    </div>
-                </div>
-            </section>
+            
 
             <!-- Multi-Location Selector and Tabs Control -->
             <section class="location-and-tabs-bar">
@@ -221,17 +203,14 @@
                     <button class="tab-btn" id="tab-committee" onclick="switchTab('Committee')">
                         👥 Committee <span class="badge" id="badge-committee">11</span>
                     </button>
-                    <button class="tab-btn" id="tab-admin-roster-students" onclick="switchTab('AdminRosterStudents')" style="display:none;">
-                        📋 Edit Students
-                    </button>
-                    <button class="tab-btn" id="tab-admin-roster-teachers" onclick="switchTab('AdminRosterTeachers')" style="display:none;">
-                        📋 Edit Teachers
-                    </button>
-                    <button class="tab-btn" id="tab-admin-roster-committee" onclick="switchTab('AdminRosterCommittee')" style="display:none;">
-                        📋 Edit Committee
+                    <button class="tab-btn" id="tab-admin-roster" onclick="switchTab('AdminRoster')" style="display:none;">
+                        📋 Admin Roster
                     </button>
                     <button class="tab-btn" id="tab-dashboard" onclick="switchTab('Dashboard')" style="display:none;">
                         📊 Dashboard
+                    </button>
+                    <button class="tab-btn" id="tab-system-tools" onclick="switchTab('SystemTools')" style="display:none;">
+                        ⚙️ System Tools
                     </button>
                 </div>
             </section>
@@ -329,8 +308,33 @@
                 </div>
             </section>
 
-            <!-- Audit Logs Card -->
-            <section class="audit-logs-card card" id="audit-section">
+            <!-- System Tools Section -->
+            <section class="system-tools-card card" id="tab-system-tools-content" style="display:none; padding: 20px;">
+                <h3 style="margin-bottom: 20px;">⚙️ System Tools & Settings</h3>
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">These tools are only visible to system administrators for managing data, simulating conditions, and auditing logs.</p>
+                <section class="file-operations card" id="file-operations-section">
+                <div class="drop-zone" id="drop-zone">
+                    <span class="drop-icon">📊</span>
+                    <div class="drop-text">
+                        <p class="main-text">Drag &amp; drop your Excel attendance spreadsheet here or <strong>browse files</strong></p>
+                        <p class="sub-text">Supports .xlsx and .xls formats</p>
+                    </div>
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display: block;">
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-secondary" onclick="generateSampleExcelTemplate()">
+                        📥 Download Blank Template
+                    </button>
+                    <div class="file-info-bar" id="file-info-bar" style="display: block;">
+                        <span class="file-name" id="loaded-file-name">template.xlsx</span>
+                        <button class="btn btn-text btn-danger" onclick="clearLoadedFile()">Remove</button>
+                    </div>
+                </div>
+            </section>
+                <br>
+                
+                <br>
+                <section class="audit-logs-card card" id="audit-section">
                 <div class="audit-header" onclick="toggleAuditLogs()">
                     <h3>📋 Real-Time Activity Audit Logs</h3>
                     <span class="toggle-icon" id="audit-toggle-icon">▲</span>
@@ -342,6 +346,11 @@
                     </div>
                 </div>
             </section>
+            </section>
+
+
+            <!-- Audit Logs Card -->
+            
         </main>
 
         <!-- Footer / Action bar -->

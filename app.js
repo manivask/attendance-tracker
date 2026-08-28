@@ -36,6 +36,8 @@ const CLASS_ROOMS = {
 const DEFAULT_TEACHERS = [];
 const DEFAULT_STUDENTS = [];
 
+const LEADERSHIP_ROSTER = [];
+
 const COMMITTEE_ROSTER = [
     { ID: "C01", Name: "Senthamil Arasan", Role: "President (Committee 1)" },
     { ID: "C02", Name: "Bharathi Raja", Role: "Committee Member 2" },
@@ -142,8 +144,8 @@ function checkAccessGate() {
         // Developer-only panels
         const isDeveloper = appState.currentUserRole.role === "Developer";
         const isAdmin = isAdminRole(appState.currentUserRole.role);
-        document.getElementById("simulation-panel").style.display = isDeveloper ? "block" : "none";
-        document.getElementById("file-operations-section").style.display = isDeveloper ? "block" : "none";
+        document.getElementById("simulation-panel").style.display = "block";
+        document.getElementById("file-operations-section").style.display = "block";
 
         // Admin-only panels (Audit, Attestation)
         const auditSection = document.getElementById("audit-section");
@@ -167,9 +169,8 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "none";
-                if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").style.display = "none";
-                if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").style.display = "none";
-                if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").style.display = "none";
+                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "none";
+                if(document.getElementById("tab-system-tools")) document.getElementById("tab-system-tools").style.display = "none";
                 if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "none";
                 if (appState.currentTab === "Committee") {
                     switchTab("Students");
@@ -197,9 +198,8 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "inline-block";
-                if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").style.display = "inline-block";
-                if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").style.display = "inline-block";
-                if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").style.display = "inline-block";
+                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "inline-block";
+                if(document.getElementById("tab-system-tools")) document.getElementById("tab-system-tools").style.display = "inline-block";
                 if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "inline-block";
             }
             // Hide main class picker for Admin since they can see all classes
@@ -1469,34 +1469,37 @@ function renderList() {
         return;
     }
 
-    if (tab.startsWith("AdminRoster")) {
+    if (tab === "AdminRoster") {
         attendanceTbody.innerHTML = "";
+        const subTab = appState.adminSubTab || "Students";
 
         // Header Row for Adds
         const headerTr = document.createElement("tr");
         headerTr.style.background = "var(--accent-light)";
-        if (tab === "AdminRosterStudents") {
+        if (subTab === "Students") {
             headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewStudent()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Student</button></td>`;
-        } else if (tab === "AdminRosterTeachers") {
+        } else if (subTab === "Teachers") {
             headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewTeacher()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Teacher</button></td>`;
-        } else if (tab === "AdminRosterCommittee") {
+        } else if (subTab === "Committee") {
             headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewCommittee()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Committee</button></td>`;
+        } else if (subTab === "Leadership") {
+            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewLeadership()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Leadership</button></td>`;
         }
         attendanceTbody.appendChild(headerTr);
 
-        const list = tab === "AdminRosterStudents" ? appState.students : (tab === "AdminRosterTeachers" ? appState.teachers : COMMITTEE_ROSTER);
-        const itemType = tab === "AdminRosterStudents" ? 'Students' : (tab === "AdminRosterTeachers" ? 'Teachers' : 'Committee');
-        const infoField = tab === "AdminRosterStudents" ? "Grade" : (tab === "AdminRosterTeachers" ? "Class Assignment" : "Role");
+        const list = subTab === "Students" ? appState.students : (subTab === "Teachers" ? appState.teachers : (subTab === "Leadership" ? LEADERSHIP_ROSTER : COMMITTEE_ROSTER));
+        const itemType = subTab;
+        const infoField = subTab === "Students" ? "Grade" : (subTab === "Teachers" ? "Class Assignment" : "Role");
 
         list.forEach(item => {
             const tr = document.createElement("tr");
             
             let selectHtml = `<input type="text" value="${item[infoField]}" onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);">`;
             
-            if (tab === "AdminRosterTeachers") {
+            if (subTab === "Teachers") {
                 let options = ['Support', ...GRADES].map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
                 selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
-            } else if (tab === "AdminRosterStudents") {
+            } else if (subTab === "Students") {
                 let options = GRADES.map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
                 selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
             }
@@ -1805,7 +1808,7 @@ function saveStateToLocalStorage() {
         attestations: appState.attestations,
         currentUserRole: appState.currentUserRole,
         logs: appState.logs
-    }));
+    , committee: COMMITTEE_ROSTER, leadership: LEADERSHIP_ROSTER}));
 }
 
 function loadStateFromLocalStorage() {
@@ -1937,7 +1940,7 @@ function renderDashboard() {
 }
 
 function updateRosterItem(type, id, field, value) {
-    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : COMMITTEE_ROSTER);
+    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : (type === 'Leadership' ? LEADERSHIP_ROSTER : COMMITTEE_ROSTER));
     const item = list.find(x => x.ID === id);
     if (item) {
         const oldVal = item[field];
@@ -1949,13 +1952,16 @@ function updateRosterItem(type, id, field, value) {
 }
 
 function deleteRosterItem(type, id) {
-    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : COMMITTEE_ROSTER);
+    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : (type === 'Leadership' ? LEADERSHIP_ROSTER : COMMITTEE_ROSTER));
     const item = list.find(x => x.ID === id);
     if (item && confirm(`Are you sure you want to delete ${type} ${item.Name} (${id})?`)) {
         if (type === 'Students') {
             appState.students = appState.students.filter(x => x.ID !== id);
         } else if (type === 'Teachers') {
             appState.teachers = appState.teachers.filter(x => x.ID !== id);
+        } else if (type === 'Leadership') {
+            const idx = LEADERSHIP_ROSTER.findIndex(x => x.ID === id);
+            if (idx > -1) LEADERSHIP_ROSTER.splice(idx, 1);
         } else {
             const idx = COMMITTEE_ROSTER.findIndex(x => x.ID === id);
             if (idx > -1) COMMITTEE_ROSTER.splice(idx, 1);
@@ -1994,6 +2000,23 @@ function addNewStudent() {
     renderList();
 }
 
+
+
+function addNewLeadership() {
+    const name = prompt("Enter Leadership Member Full Name:");
+    if (!name) return;
+    const role = prompt("Enter Role (e.g. Principal, Asst Principal):", "Principal");
+    if (!role) return;
+
+    const lastId = LEADERSHIP_ROSTER.length > 0 ? parseInt(LEADERSHIP_ROSTER[LEADERSHIP_ROSTER.length - 1].ID.substring(1)) : 0;
+    let nextNum = lastId + 1;
+    let newId = "L" + String(nextNum).padStart(2, '0');
+
+    LEADERSHIP_ROSTER.push({ ID: newId, Name: name, Role: role });
+    logActivity("Admin added new leadership member: " + name + " (" + newId + ")");
+    saveStateToLocalStorage();
+    renderList();
+}
 
 function addNewCommittee() {
     const name = prompt("Enter Committee Member Full Name:");
