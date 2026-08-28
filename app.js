@@ -7,6 +7,7 @@ const GRADES = [
     "Nilai 1",
     "Nilai 2A", "Nilai 2B",
     "Nilai 3A", "Nilai 3B",
+    "Nilai 4",
     "Nilai 4A", "Nilai 4B",
     "Nilai 5",
     "Nilai 6",
@@ -166,7 +167,9 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "none";
-                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "none";
+                if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").style.display = "none";
+                if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").style.display = "none";
+                if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").style.display = "none";
                 if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "none";
                 if (appState.currentTab === "Committee") {
                     switchTab("Students");
@@ -194,7 +197,9 @@ function checkAccessGate() {
                 document.getElementById("tab-students").style.display = "inline-block";
                 document.getElementById("tab-teachers").style.display = "inline-block";
                 document.getElementById("tab-committee").style.display = "inline-block";
-                if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").style.display = "inline-block";
+                if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").style.display = "inline-block";
+                if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").style.display = "inline-block";
+                if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").style.display = "inline-block";
                 if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").style.display = "inline-block";
             }
             // Hide main class picker for Admin since they can see all classes
@@ -370,12 +375,19 @@ function initializeDefaultAttendanceForClass() {
 
     let initializedAny = false;
     appState.students.forEach(s => {
-        if (s.Location === loc && s.Grade === grade) {
-            if (!appState.attendance.Students[activeDate][s.ID]) {
-                appState.attendance.Students[activeDate][s.ID] = "present";
-                initializedAny = true;
+        if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
+        Object.keys(appState.attendance.Students).forEach(date => {
+            const status = appState.attendance.Students[date]?.[s.ID];
+            if (status === "present" || status === "absent") {
+                total++;
+                classStats[s.Grade].total++;
+                if (status === "present") {
+                    present++;
+                    classStats[s.Grade].present++;
+                }
+                if (status === "absent") absent++;
             }
-        }
+        });
     });
 
     appState.teachers.forEach(t => {
@@ -390,6 +402,7 @@ function initializeDefaultAttendanceForClass() {
     if (initializedAny) {
         logActivity(`Initialized default status 'Present' for unmarked students & teachers of ${grade} at ${loc}`);
         saveStateToLocalStorage();
+        renderList();
     }
 }
 
@@ -1345,7 +1358,9 @@ function switchTab(tabName) {
     document.getElementById("tab-students").classList.toggle("active", tabName === "Students");
     document.getElementById("tab-teachers").classList.toggle("active", tabName === "Teachers");
     document.getElementById("tab-committee").classList.toggle("active", tabName === "Committee");
-    if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").classList.toggle("active", tabName === "AdminRoster");
+    if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").classList.toggle("active", tabName === "AdminRosterStudents");
+    if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").classList.toggle("active", tabName === "AdminRosterTeachers");
+    if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").classList.toggle("active", tabName === "AdminRosterCommittee");
     if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").classList.toggle("active", tabName === "Dashboard");
 
     const attendanceSec = document.getElementById("attendance-section");
@@ -1361,8 +1376,9 @@ function switchTab(tabName) {
         dashboardSec.style.display = "none";
     }
 
-    currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : tabName === "AdminRoster" ? "Admin Roster Editor" : "Committee Roster";
-    thInfo.textContent = tabName === "Students" ? "Grade" : (tabName === "Teachers" || tabName === "AdminRoster") ? "Class Assignment" : "Role";
+    if(tabName.startsWith("AdminRoster")) currentSheetTitle.textContent = "Admin Roster Editor - " + tabName.replace("AdminRoster", "");
+    else currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : "Committee Roster";
+    thInfo.textContent = (tabName === "Students" || tabName === "AdminRosterStudents") ? "Grade" : (tabName === "Teachers" || tabName === "AdminRosterTeachers") ? "Class Assignment" : "Role";
 
     const gridBar = document.getElementById("grid-controls-bar");
     const statusFiltersGroup = document.getElementById("status-filters-group");
@@ -1373,7 +1389,7 @@ function switchTab(tabName) {
         gridBar.style.display = "none";
         selectionStatsGroup.style.display = "none";
         thStatusCol.textContent = "Status Check";
-    } else if (tabName === "AdminRoster") {
+    } else if (tabName.startsWith("AdminRoster")) {
         gridBar.style.display = "flex";
         statusFiltersGroup.style.display = "none";
         selectionStatsGroup.style.display = "none";
@@ -1460,53 +1476,50 @@ function renderList() {
         return;
     }
 
-    if (tab === "AdminRoster") {
+    if (tab.startsWith("AdminRoster")) {
         attendanceTbody.innerHTML = "";
 
-        // Add Header Row with "+" buttons
+        // Header Row for Adds
         const headerTr = document.createElement("tr");
         headerTr.style.background = "var(--accent-light)";
-        headerTr.innerHTML = `
-            <td colspan="4" style="padding: 10px; text-align: right;">
-                <button class="btn btn-primary" onclick="addNewStudent()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Student</button>
-                <button class="btn btn-secondary" onclick="addNewTeacher()" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 8px;">➕ Add Teacher</button>
-            </td>
-        `;
+        if (tab === "AdminRosterStudents") {
+            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewStudent()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Student</button></td>`;
+        } else if (tab === "AdminRosterTeachers") {
+            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewTeacher()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Teacher</button></td>`;
+        } else if (tab === "AdminRosterCommittee") {
+            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewCommittee()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Committee</button></td>`;
+        }
         attendanceTbody.appendChild(headerTr);
 
-        // Show Students
-        appState.students.forEach(item => {
+        const list = tab === "AdminRosterStudents" ? appState.students : (tab === "AdminRosterTeachers" ? appState.teachers : COMMITTEE_ROSTER);
+        const itemType = tab === "AdminRosterStudents" ? 'Students' : (tab === "AdminRosterTeachers" ? 'Teachers' : 'Committee');
+        const infoField = tab === "AdminRosterStudents" ? "Grade" : (tab === "AdminRosterTeachers" ? "Class Assignment" : "Role");
+
+        list.forEach(item => {
             const tr = document.createElement("tr");
+            
+            let selectHtml = `<input type="text" value="${item[infoField]}" onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);">`;
+            
+            if (tab === "AdminRosterTeachers") {
+                let options = ['Support', ...GRADES].map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
+                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
+            } else if (tab === "AdminRosterStudents") {
+                let options = GRADES.map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
+                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
+            }
+            
             tr.innerHTML = `
                 <td><strong>${item.ID}</strong></td>
-                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Students', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
-                <td><input type="text" value="${item.Grade}" onchange="updateRosterItem('Students', '${item.ID}', 'Grade', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);"></td>
+                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('${itemType}', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
+                <td>${selectHtml}</td>
                 <td class="center-align">
-                    <button class="btn btn-secondary" onclick="deleteRosterItem('Students', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
+                    <button class="btn btn-secondary" onclick="deleteRosterItem('${itemType}', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
                 </td>
             `;
             attendanceTbody.appendChild(tr);
         });
 
-        // Show Teachers as well in Roster
-        const teacherDivider = document.createElement("tr");
-        teacherDivider.innerHTML = `<td colspan="4" style="background:var(--bg-primary); font-weight:bold; padding: 10px;">Teachers</td>`;
-        attendanceTbody.appendChild(teacherDivider);
-
-        appState.teachers.forEach(item => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td><strong>${item.ID}</strong></td>
-                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Teachers', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
-                <td><input type="text" value="${item["Class Assignment"]}" onchange="updateRosterItem('Teachers', '${item.ID}', 'Class Assignment', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);"></td>
-                <td class="center-align">
-                    <button class="btn btn-secondary" onclick="deleteRosterItem('Teachers', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
-                </td>
-            `;
-            attendanceTbody.appendChild(tr);
-        });
-
-        document.getElementById("empty-state").style.display = (appState.students.length === 0 && appState.teachers.length === 0) ? "block" : "none";
+        document.getElementById("empty-state").style.display = list.length === 0 ? "block" : "none";
         return;
     }
 
@@ -1614,16 +1627,46 @@ function generateSampleExcelTemplate() {
     XLSX.utils.book_append_sheet(wb, wsStudents, "Students");
     XLSX.utils.book_append_sheet(wb, wsCommittee, "Committee");
 
-    XLSX.writeFile(wb, "tamil_school_template_v4.xlsx");
+    saveAndShareExcel(wb, "tamil_school_template_v4.xlsx");
 }
 
 // Export excel with new date column + Audit Logs sheet added
+function saveAndShareExcel(wb, filename) {
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        try {
+            const base64Data = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+            const Filesystem = window.Capacitor.Plugins.Filesystem;
+            const Share = window.Capacitor.Plugins.Share;
+            
+            Filesystem.writeFile({
+                path: filename,
+                data: base64Data,
+                directory: 'DOCUMENTS',
+                recursive: true
+            }).then((writeFileResult) => {
+                Share.share({
+                    title: 'Attendance Export',
+                    text: 'Here is the exported attendance Excel sheet.',
+                    url: writeFileResult.uri,
+                    dialogTitle: 'Save or Share Attendance'
+                }).catch(e => alert("Error sharing: " + JSON.stringify(e)));
+            }).catch(e => {
+                alert("Error writing file: " + JSON.stringify(e));
+            });
+        } catch (error) {
+            alert("Export error: " + error.message);
+        }
+    } else {
+        XLSX.writeFile(wb, filename);
+    }
+}
+
 function exportExcel() {
     const activeDate = getActiveDateString();
 
     if (appState.workbook) {
         updateWorkbookData();
-        XLSX.writeFile(appState.workbook, `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`);
+        saveAndShareExcel(appState.workbook, `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`);
         return;
     }
 
@@ -1664,7 +1707,7 @@ function exportExcel() {
     XLSX.utils.book_append_sheet(wb, wsLogs, "Audit Logs");
     XLSX.utils.book_append_sheet(wb, wsCommittee, "Committee");
 
-    XLSX.writeFile(wb, `tamil_school_attendance_${activeDate}.xlsx`);
+    saveAndShareExcel(wb, `tamil_school_attendance_${activeDate}.xlsx`);
 }
 
 // Submit attendance
@@ -1849,16 +1892,18 @@ function renderDashboard() {
 
     appState.students.forEach(s => {
         if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
-        const status = appState.attendance.Students[activeDate]?.[s.ID];
-        if (status === "present" || status === "absent") {
-            total++;
-            classStats[s.Grade].total++;
-            if (status === "present") {
-                present++;
-                classStats[s.Grade].present++;
+        Object.keys(appState.attendance.Students).forEach(date => {
+            const status = appState.attendance.Students[date]?.[s.ID];
+            if (status === "present" || status === "absent") {
+                total++;
+                classStats[s.Grade].total++;
+                if (status === "present") {
+                    present++;
+                    classStats[s.Grade].present++;
+                }
+                if (status === "absent") absent++;
             }
-            if (status === "absent") absent++;
-        }
+        });
     });
 
     const overallPct = total > 0 ? Math.round((present / total) * 100) + "%" : "No Data";
@@ -1899,24 +1944,28 @@ function renderDashboard() {
 }
 
 function updateRosterItem(type, id, field, value) {
-    const list = type === 'Students' ? appState.students : appState.teachers;
+    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : COMMITTEE_ROSTER);
     const item = list.find(x => x.ID === id);
     if (item) {
         const oldVal = item[field];
         item[field] = value;
         logActivity(`Admin updated ${type} ${id} field '${field}' from '${oldVal}' to '${value}'`);
         saveStateToLocalStorage();
+        renderList();
     }
 }
 
 function deleteRosterItem(type, id) {
-    const list = type === 'Students' ? appState.students : appState.teachers;
+    const list = type === 'Students' ? appState.students : (type === 'Teachers' ? appState.teachers : COMMITTEE_ROSTER);
     const item = list.find(x => x.ID === id);
     if (item && confirm(`Are you sure you want to delete ${type} ${item.Name} (${id})?`)) {
         if (type === 'Students') {
             appState.students = appState.students.filter(x => x.ID !== id);
-        } else {
+        } else if (type === 'Teachers') {
             appState.teachers = appState.teachers.filter(x => x.ID !== id);
+        } else {
+            const idx = COMMITTEE_ROSTER.findIndex(x => x.ID === id);
+            if (idx > -1) COMMITTEE_ROSTER.splice(idx, 1);
         }
         logActivity(`Admin deleted ${type}: ${item.Name} (${id})`);
         saveStateToLocalStorage();
@@ -1948,6 +1997,23 @@ function addNewStudent() {
 
     appState.students.push(newStudent);
     logActivity(`Admin added new student: ${name} (${newId}) in ${grade}`);
+    saveStateToLocalStorage();
+    renderList();
+}
+
+
+function addNewCommittee() {
+    const name = prompt("Enter Committee Member Full Name:");
+    if (!name) return;
+    const role = prompt("Enter Role:", "Committee Member");
+    if (!role) return;
+
+    const lastId = COMMITTEE_ROSTER.length > 0 ? parseInt(COMMITTEE_ROSTER[COMMITTEE_ROSTER.length - 1].ID.substring(1)) : 0;
+    let nextNum = lastId + 1;
+    let newId = "C" + String(nextNum).padStart(2, '0');
+
+    COMMITTEE_ROSTER.push({ ID: newId, Name: name, Role: role });
+    logActivity("Admin added new committee member: " + name + " (" + newId + ")");
     saveStateToLocalStorage();
     renderList();
 }

@@ -201,6 +201,7 @@
                         <option value="Nilai 2B">Nilai 2B (Room 125)</option>
                         <option value="Nilai 3A">Nilai 3A (Room 124)</option>
                         <option value="Nilai 3B">Nilai 3B (Room 127)</option>
+                        <option value="Nilai 4">Nilai 4</option>
                         <option value="Nilai 4A">Nilai 4A (Room 129)</option>
                         <option value="Nilai 4B">Nilai 4B (Room 130)</option>
                         <option value="Nilai 5">Nilai 5 (Room 120)</option>
@@ -220,8 +221,14 @@
                     <button class="tab-btn" id="tab-committee" onclick="switchTab('Committee')">
                         👥 Committee <span class="badge" id="badge-committee">11</span>
                     </button>
-                    <button class="tab-btn" id="tab-admin-roster" onclick="switchTab('AdminRoster')" style="display:none;">
-                        📋 Admin Roster
+                    <button class="tab-btn" id="tab-admin-roster-students" onclick="switchTab('AdminRosterStudents')" style="display:none;">
+                        📋 Edit Students
+                    </button>
+                    <button class="tab-btn" id="tab-admin-roster-teachers" onclick="switchTab('AdminRosterTeachers')" style="display:none;">
+                        📋 Edit Teachers
+                    </button>
+                    <button class="tab-btn" id="tab-admin-roster-committee" onclick="switchTab('AdminRosterCommittee')" style="display:none;">
+                        📋 Edit Committee
                     </button>
                     <button class="tab-btn" id="tab-dashboard" onclick="switchTab('Dashboard')" style="display:none;">
                         📊 Dashboard
@@ -355,7 +362,7 @@
 
 
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
