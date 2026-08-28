@@ -235,9 +235,9 @@ function isAdminRole(role) {
 function updateActiveDateBar() {
     const bar = document.getElementById("active-date-bar");
     const display = document.getElementById("date-bar-display");
-    const adminControls = document.getElementById("date-bar-admin-controls");
+    const dateControls = document.getElementById("date-bar-attendance-controls");
     const roleBadge = document.getElementById("date-bar-role-badge");
-    const adminDatePicker = document.getElementById("admin-date-picker");
+    const datePicker = document.getElementById("attendance-date-picker");
 
     if (!appState.currentUserRole) {
         bar.style.display = "none";
@@ -250,15 +250,16 @@ function updateActiveDateBar() {
 
     const role = appState.currentUserRole.role;
     const isAdmin = isAdminRole(role);
+    const isTeacher = role === "Teacher";
 
     roleBadge.textContent = role === "Teacher" ? `📚 ${appState.currentUserRole.grade || "Teacher"}` : `🔑 ${role}`;
     roleBadge.className = "date-bar-role-badge" + (role === "Teacher" ? " badge-teacher" : " badge-admin");
 
-    if (isAdmin) {
-        adminControls.style.display = "flex";
-        adminDatePicker.value = activeDate;
+    if (isAdmin || isTeacher) {
+        dateControls.style.display = "flex";
+        datePicker.value = activeDate;
     } else {
-        adminControls.style.display = "none";
+        dateControls.style.display = "none";
     }
 }
 
@@ -268,12 +269,12 @@ function formatDateForDisplay(dateStr) {
     return d.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
-function handleAdminDateChange() {
-    const picker = document.getElementById("admin-date-picker");
+function handleDateChange() {
+    const picker = document.getElementById("attendance-date-picker");
     const selectedDate = picker.value;
     if (!selectedDate) return;
 
-    // Override the sim date to use the admin-picked date
+    // Override the sim date to use the picked date
     const simDateInput = document.getElementById("sim-date");
     const simTimeInput = document.getElementById("sim-time");
     const enableSim = document.getElementById("enable-sim");
@@ -285,7 +286,7 @@ function handleAdminDateChange() {
     updateActiveDateBar();
     updateDateTimeAndRules();
     renderList();
-    logActivity(`Admin changed active attendance date to: ${selectedDate}`);
+    logActivity(`${appState.currentUserRole?.name || "User"} changed active attendance date to: ${selectedDate}`);
 }
 
 // Student Profile Modal
@@ -1461,20 +1462,51 @@ function renderList() {
 
     if (tab === "AdminRoster") {
         attendanceTbody.innerHTML = "";
-        // Just show all students for now, with a basic delete/edit button (we will add edit functionality)
+
+        // Add Header Row with "+" buttons
+        const headerTr = document.createElement("tr");
+        headerTr.style.background = "var(--accent-light)";
+        headerTr.innerHTML = `
+            <td colspan="4" style="padding: 10px; text-align: right;">
+                <button class="btn btn-primary" onclick="addNewStudent()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Student</button>
+                <button class="btn btn-secondary" onclick="addNewTeacher()" style="padding: 6px 12px; font-size: 0.85rem; margin-left: 8px;">➕ Add Teacher</button>
+            </td>
+        `;
+        attendanceTbody.appendChild(headerTr);
+
+        // Show Students
         appState.students.forEach(item => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td><strong>${item.ID}</strong></td>
-                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Students', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px;"></td>
-                <td><input type="text" value="${item.Grade}" onchange="updateRosterItem('Students', '${item.ID}', 'Grade', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px;"></td>
+                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Students', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
+                <td><input type="text" value="${item.Grade}" onchange="updateRosterItem('Students', '${item.ID}', 'Grade', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);"></td>
                 <td class="center-align">
-                    <button class="btn btn-secondary" onclick="deleteRosterItem('Students', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color);">Delete</button>
+                    <button class="btn btn-secondary" onclick="deleteRosterItem('Students', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
                 </td>
             `;
             attendanceTbody.appendChild(tr);
         });
-        document.getElementById("empty-state").style.display = appState.students.length === 0 ? "block" : "none";
+
+        // Show Teachers as well in Roster
+        const teacherDivider = document.createElement("tr");
+        teacherDivider.innerHTML = `<td colspan="4" style="background:var(--bg-primary); font-weight:bold; padding: 10px;">Teachers</td>`;
+        attendanceTbody.appendChild(teacherDivider);
+
+        appState.teachers.forEach(item => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><strong>${item.ID}</strong></td>
+                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('Teachers', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
+                <td><input type="text" value="${item["Class Assignment"]}" onchange="updateRosterItem('Teachers', '${item.ID}', 'Class Assignment', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);"></td>
+                <td class="center-align">
+                    <button class="btn btn-secondary" onclick="deleteRosterItem('Teachers', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
+                </td>
+            `;
+            attendanceTbody.appendChild(tr);
+        });
+
+        document.getElementById("empty-state").style.display = (appState.students.length === 0 && appState.teachers.length === 0) ? "block" : "none";
         return;
     }
 
@@ -1870,16 +1902,79 @@ function updateRosterItem(type, id, field, value) {
     const list = type === 'Students' ? appState.students : appState.teachers;
     const item = list.find(x => x.ID === id);
     if (item) {
+        const oldVal = item[field];
         item[field] = value;
+        logActivity(`Admin updated ${type} ${id} field '${field}' from '${oldVal}' to '${value}'`);
         saveStateToLocalStorage();
     }
 }
 
 function deleteRosterItem(type, id) {
-    if (confirm('Are you sure you want to delete this record?')) {
-        if (type === 'Students') appState.students = appState.students.filter(x => x.ID !== id);
-        else appState.teachers = appState.teachers.filter(x => x.ID !== id);
+    const list = type === 'Students' ? appState.students : appState.teachers;
+    const item = list.find(x => x.ID === id);
+    if (item && confirm(`Are you sure you want to delete ${type} ${item.Name} (${id})?`)) {
+        if (type === 'Students') {
+            appState.students = appState.students.filter(x => x.ID !== id);
+        } else {
+            appState.teachers = appState.teachers.filter(x => x.ID !== id);
+        }
+        logActivity(`Admin deleted ${type}: ${item.Name} (${id})`);
         saveStateToLocalStorage();
         renderList();
     }
+}
+
+function addNewStudent() {
+    const name = prompt("Enter Student Full Name:");
+    if (!name) return;
+    const grade = prompt("Enter Grade (e.g. Nilai 1, Nilai 2A):", "Nilai 1");
+    if (!grade) return;
+
+    // Generate new ID
+    const lastId = appState.students.length > 0 ? parseInt(appState.students[appState.students.length - 1].ID.substring(1)) : 0;
+    const newId = `S${String(lastId + 1).padStart(3, '0')}`;
+
+    const newStudent = {
+        ID: newId,
+        Name: name,
+        Location: "Riverview",
+        Grade: grade,
+        "Date of Birth": "",
+        Gender: "",
+        "Parent Name": "",
+        "Parent Phone": "",
+        "Parent Email": ""
+    };
+
+    appState.students.push(newStudent);
+    logActivity(`Admin added new student: ${name} (${newId}) in ${grade}`);
+    saveStateToLocalStorage();
+    renderList();
+}
+
+function addNewTeacher() {
+    const name = prompt("Enter Teacher Full Name:");
+    if (!name) return;
+    const assignment = prompt("Enter Class Assignment (e.g. Nilai 1, Nilai 2A):", "Nilai 1");
+    if (!assignment) return;
+
+    // Generate new ID
+    const lastId = appState.teachers.length > 0 ? parseInt(appState.teachers[appState.teachers.length - 1].ID.substring(1)) : 0;
+    const newId = `T${String(lastId + 1).padStart(3, '0')}`;
+
+    const newTeacher = {
+        ID: newId,
+        Name: name,
+        Location: "Riverview",
+        "Class Assignment": assignment,
+        Section: assignment.slice(-1).match(/[A-Z]/) ? assignment.slice(-1) : "A",
+        Room: "",
+        Email: "",
+        Phone: ""
+    };
+
+    appState.teachers.push(newTeacher);
+    logActivity(`Admin added new teacher: ${name} (${newId}) assigned to ${assignment}`);
+    saveStateToLocalStorage();
+    renderList();
 }

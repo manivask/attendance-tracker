@@ -113,10 +113,10 @@
             <div class="date-bar-inner">
                 <span class="date-bar-label">📅 Attendance Date:</span>
                 <span class="date-bar-value" id="date-bar-display">--</span>
-                <!-- Admin-only date editor -->
-                <div class="date-bar-admin-controls" id="date-bar-admin-controls" style="display:none;">
-                    <input type="date" id="admin-date-picker" onchange="handleAdminDateChange()" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
-                    <span class="date-hint">Admin: click date to change</span>
+                <!-- Date editor for authorized users -->
+                <div class="date-bar-attendance-controls" id="date-bar-attendance-controls" style="display:none;">
+                    <input type="date" id="attendance-date-picker" onchange="handleDateChange()" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                    <span class="date-hint">Click to change date</span>
                 </div>
             </div>
             <div class="date-bar-role-badge" id="date-bar-role-badge">Teacher</div>
