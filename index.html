@@ -183,7 +183,6 @@
                         <option value="Nilai 2B">Nilai 2B (Room 125)</option>
                         <option value="Nilai 3A">Nilai 3A (Room 124)</option>
                         <option value="Nilai 3B">Nilai 3B (Room 127)</option>
-                        <option value="Nilai 4">Nilai 4</option>
                         <option value="Nilai 4A">Nilai 4A (Room 129)</option>
                         <option value="Nilai 4B">Nilai 4B (Room 130)</option>
                         <option value="Nilai 5">Nilai 5 (Room 120)</option>
@@ -212,6 +211,27 @@
                     <button class="tab-btn" id="tab-system-tools" onclick="switchTab('SystemTools')" style="display:none;">
                         ⚙️ System Tools
                     </button>
+                </div>
+            </section>
+
+            <!-- Admin Roster Toolbar (shown only in AdminRoster tab) -->
+            <section class="card" id="admin-roster-toolbar" style="display: none; padding: 12px 18px; margin-bottom: 15px; background: var(--bg-secondary);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <span style="font-weight: 600; font-size: 0.95rem; margin-right: 4px;">Edit Roster:</span>
+                        <button class="btn btn-secondary subtab-btn active" id="subtab-students" onclick="switchAdminSubTab('Students')" style="padding: 6px 12px; font-size: 0.85rem;">🎓 Students (<span id="admin-count-students">0</span>)</button>
+                        <button class="btn btn-secondary subtab-btn" id="subtab-teachers" onclick="switchAdminSubTab('Teachers')" style="padding: 6px 12px; font-size: 0.85rem;">🏫 Teachers (<span id="admin-count-teachers">0</span>)</button>
+                        <button class="btn btn-secondary subtab-btn" id="subtab-committee" onclick="switchAdminSubTab('Committee')" style="padding: 6px 12px; font-size: 0.85rem;">👥 Committee (<span id="admin-count-committee">0</span>)</button>
+                        <button class="btn btn-secondary subtab-btn" id="subtab-leadership" onclick="switchAdminSubTab('Leadership')" style="padding: 6px 12px; font-size: 0.85rem;">🎖️ Leadership (<span id="admin-count-leadership">0</span>)</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-primary" onclick="saveAdminRosterExplicitly()" style="background: var(--success-color); border-color: var(--success-color); font-weight: 700; padding: 8px 16px; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
+                            💾 Save Roster Changes
+                        </button>
+                    </div>
+                </div>
+                <div id="roster-save-notification" style="display: none; margin-top: 10px; padding: 8px 12px; border-radius: 6px; background: var(--success-bg); color: var(--success-color); font-weight: 600; font-size: 0.9rem;">
+                    ✅ Roster saved successfully! All updates are live and persisted.
                 </div>
             </section>
 
@@ -290,20 +310,50 @@
 
             <!-- Dashboard Section -->
             <section class="dashboard-card card" id="dashboard-section" style="display: none;">
-                <h3>📊 KPIs & Attendance Dashboard</h3>
-                <div class="dashboard-stats" style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
-                    <div class="stat-box" style="flex: 1; padding: 15px; background: var(--bg-secondary); border-radius: 8px; text-align: center;">
-                        <h4 style="margin:0 0 10px 0; color: var(--text-secondary);">Overall Attendance</h4>
-                        <strong id="kpi-overall" style="font-size: 24px; color: var(--text-primary);">-</strong>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 16px; gap: 10px;">
+                    <h3>📊 Attendance KPIs &amp; Performance Dashboard</h3>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="kpi-date-select" style="font-weight: 600; font-size: 0.9rem;">📅 Session Date:</label>
+                        <select id="kpi-date-select" onchange="handleKpiDateChange()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; font-weight: 600;">
+                        </select>
                     </div>
                 </div>
-                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 300px;">
-                        <canvas id="kpi-pie-chart" width="400" height="200"></canvas>
+                
+                <div class="dashboard-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 24px;">
+                    <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                        <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Overall Attendance</h4>
+                        <strong id="kpi-overall" style="font-size: 28px; color: var(--accent-color); font-family: var(--font-heading);">-</strong>
+                        <div id="kpi-overall-ratio" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">-- / --</div>
                     </div>
-                    <div style="flex: 1; min-width: 300px;">
-                        <h4 style="margin:0 0 10px 0; color: var(--text-secondary);">By Class</h4>
-                        <ul id="kpi-class-list" style="list-style: none; padding: 0; margin: 0; color: var(--text-primary);"></ul>
+                    <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                        <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Present Students</h4>
+                        <strong id="kpi-present-count" style="font-size: 28px; color: var(--success-color); font-family: var(--font-heading);">0</strong>
+                        <div id="kpi-present-pct" style="font-size: 0.8rem; color: var(--success-color); margin-top: 4px;">0%</div>
+                    </div>
+                    <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                        <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Absent Students</h4>
+                        <strong id="kpi-absent-count" style="font-size: 28px; color: var(--danger-color); font-family: var(--font-heading);">0</strong>
+                        <div id="kpi-absent-pct" style="font-size: 0.8rem; color: var(--danger-color); margin-top: 4px;">0%</div>
+                    </div>
+                    <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                        <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Teachers Present</h4>
+                        <strong id="kpi-teachers-count" style="font-size: 28px; color: var(--text-primary); font-family: var(--font-heading);">0</strong>
+                        <div id="kpi-teachers-pct" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">-- / --</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start;">
+                    <div style="background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); padding: 20px;">
+                        <h4 style="margin:0 0 16px 0; color: var(--text-primary); font-size: 1.05rem;">📈 Student Attendance Distribution</h4>
+                        <div style="position: relative; height: 260px; display: flex; justify-content: center; align-items: center;">
+                            <canvas id="kpi-pie-chart"></canvas>
+                        </div>
+                    </div>
+                    <div style="background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); padding: 20px;">
+                        <h4 style="margin:0 0 16px 0; color: var(--text-primary); font-size: 1.05rem;">🎓 Class-by-Class Breakdown</h4>
+                        <div id="kpi-class-list-container" style="max-height: 290px; overflow-y: auto; padding-right: 4px;">
+                            <ul id="kpi-class-list" style="list-style: none; padding: 0; margin: 0; color: var(--text-primary);"></ul>
+                        </div>
                     </div>
                 </div>
             </section>

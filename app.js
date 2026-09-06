@@ -1,13 +1,11 @@
 const LOCATIONS = ["Riverview"];
 
-// All classes including pre-school classes and sectioned grades
 const GRADES = [
     "Ilanthalir",
     "Mazhalai",
     "Nilai 1",
     "Nilai 2A", "Nilai 2B",
     "Nilai 3A", "Nilai 3B",
-    "Nilai 4",
     "Nilai 4A", "Nilai 4B",
     "Nilai 5",
     "Nilai 6",
@@ -141,11 +139,12 @@ function checkAccessGate() {
         // Update active date bar visibility
         updateActiveDateBar();
 
-        // Developer-only panels
+        // Developer & Admin panels (Hide simulation panel completely for Teachers)
         const isDeveloper = appState.currentUserRole.role === "Developer";
         const isAdmin = isAdminRole(appState.currentUserRole.role);
-        document.getElementById("simulation-panel").style.display = "block";
-        document.getElementById("file-operations-section").style.display = "block";
+        const canViewSimulation = (isDeveloper || isAdmin) && appState.currentUserRole.role !== "Teacher";
+        document.getElementById("simulation-panel").style.display = canViewSimulation ? "block" : "none";
+        document.getElementById("file-operations-section").style.display = (isDeveloper || isAdmin) ? "block" : "none";
 
         // Admin-only panels (Audit, Attestation)
         const auditSection = document.getElementById("audit-section");
@@ -155,6 +154,8 @@ function checkAccessGate() {
 
         // If teacher, lock down UI
         if (appState.currentUserRole.role === "Teacher") {
+            document.getElementById("simulation-panel").style.display = "none";
+            document.getElementById("file-operations-section").style.display = "none";
             appState.currentLocation = appState.currentUserRole.location;
             appState.currentTab = "Students";
 
@@ -933,10 +934,79 @@ function loadDefaultWorkbook() {
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 appState.workbook = workbook;
 
-                // Always rebuild from Excel so roster is always fresh
-                buildRosterFromWorkbook(workbook);
-                enhanceStudentsWithMasterList();
+                const saved = localStorage.getItem("attendance_tracker_state_v7");
+                let parsed = null;
+                if (saved) {
+                    try { parsed = JSON.parse(saved); } catch(e) {}
+                }
+
+                // If admin explicitly customized roster, keep customized roster
+                if (parsed && parsed.customRosterSaved && parsed.students && parsed.students.length > 0) {
+                    appState.students = parsed.students;
+                    if (parsed.teachers && parsed.teachers.length > 0) appState.teachers = parsed.teachers;
+                    if (parsed.committee && parsed.committee.length > 0) {
+                        COMMITTEE_ROSTER.length = 0;
+                        parsed.committee.forEach(c => COMMITTEE_ROSTER.push(c));
+                    }
+                    if (parsed.leadership && parsed.leadership.length > 0) {
+                        LEADERSHIP_ROSTER.length = 0;
+                        parsed.leadership.forEach(l => LEADERSHIP_ROSTER.push(l));
+                    }
+                } else {
+                    buildRosterFromWorkbook(workbook);
+                    enhanceStudentsWithMasterList();
+                }
+
+                // Ensure student 'Sundar' is in Ilanthalir
+                const hasSundar = appState.students.some(s => s.Name.trim().toLowerCase() === "sundar" && s.Grade === "Ilanthalir");
+                if (!hasSundar) {
+                    const sundarObj = appState.students.find(s => s.Name.trim().toLowerCase() === "sundar");
+                    if (sundarObj) {
+                        sundarObj.Grade = "Ilanthalir";
+                    } else {
+                        appState.students.push({
+                            ID: `S${String(appState.students.length + 1).padStart(3, '0')}`,
+                            Name: "Sundar",
+                            Location: "Riverview",
+                            Grade: "Ilanthalir",
+                            "Date of Birth": "",
+                            Gender: "",
+                            "Parent Name": "",
+                            "Parent Phone": "",
+                            "Parent Email": "sundar@tampabaytamilacademy.org",
+                            "Tamil Name": "சுந்தர்"
+                        });
+                    }
+                }
+
+                // Ensure Lithisa Vasudevan is NOT in Nilai 2 / 2B (only in Nilai 4A)
+                appState.students = appState.students.filter(s => {
+                    const isLithisa = s.Name.toLowerCase().includes("lithisa") && s.Name.toLowerCase().includes("vasudevan");
+                    if (isLithisa && (s.Grade.includes("Nilai 2") || s.Grade === "Nilai 2A" || s.Grade === "Nilai 2B")) {
+                        return false;
+                    }
+                    return true;
+                });
+
+                // Ensure no student has generic "Nilai 4"
+                appState.students.forEach(s => {
+                    if (s.Grade === "Nilai 4") s.Grade = "Nilai 4A";
+                });
+
                 parseAttendanceFromWorkbook(workbook);
+
+                // Merge any locally marked attendance if present
+                if (parsed && parsed.attendance) {
+                    for (const cat of ['Students', 'Teachers']) {
+                        if (parsed.attendance[cat]) {
+                            for (const [dt, map] of Object.entries(parsed.attendance[cat])) {
+                                if (!appState.attendance[cat][dt]) appState.attendance[cat][dt] = {};
+                                Object.assign(appState.attendance[cat][dt], map);
+                            }
+                        }
+                    }
+                }
+
                 saveStateToLocalStorage();
                 renderList();
             })
@@ -1007,7 +1077,7 @@ function buildRosterFromWorkbook(workbook) {
         ["Nilai-1", "Nilai 1", false],
         ["Nilai-2", "Nilai 2", true],   // has 2A/2B Class column
         ["Nilai-3", "Nilai 3", true],   // has 3A/3B Class column
-        ["Nilai-4", "Nilai 4", true],   // has 4A/4B Class column
+        ["Nilai-4", "Nilai 4A", true],  // has 4A/4B Class column
         ["Nilai-5", "Nilai 5", false],
         ["Nilai-6", "Nilai 6", false],
         ["Nilai-7", "Nilai 7", false],
@@ -1103,11 +1173,23 @@ function buildRosterFromWorkbook(workbook) {
 
             // Determine grade with section
             let grade = baseGrade;
-            if (hasSections && classCol >= 0 && row[classCol]) {
-                const classVal = String(row[classCol]).trim();
-                if (classVal.match(/^\d[AB]$/)) {
-                    grade = `Nilai ${classVal}`;
+            if (hasSections) {
+                if (classCol >= 0 && row[classCol]) {
+                    const classVal = String(row[classCol]).trim();
+                    if (classVal.match(/^\d[AB]$/)) {
+                        grade = `Nilai ${classVal}`;
+                    } else if (classVal === "A" || classVal === "B") {
+                        const digit = sheetname.replace("Nilai-", "");
+                        grade = `Nilai ${digit}${classVal}`;
+                    }
+                } else if (sheetname === "Nilai-4") {
+                    grade = "Nilai 4A";
                 }
+            }
+
+            // Remove Lithisa Vasudevan if found in Nilai-2
+            if (fullName.toLowerCase().includes("lithisa") && fullName.toLowerCase().includes("vasudevan") && grade.includes("Nilai 2")) {
+                continue;
             }
 
             const key = `${fullName}__${grade}`;
@@ -1136,6 +1218,27 @@ function buildRosterFromWorkbook(workbook) {
             sIdx++;
         }
     });
+
+    // Ensure Sundar is in Ilanthalir
+    const sundarInList = newStudents.some(s => s.Name.trim().toLowerCase() === "sundar" && s.Grade === "Ilanthalir");
+    if (!sundarInList) {
+        newStudents.unshift({
+            ID: `S${String(newStudents.length + 1).padStart(3, '0')}`,
+            Name: "Sundar",
+            Location: "Riverview",
+            Grade: "Ilanthalir",
+            "Date of Birth": "",
+            Gender: "",
+            "Parent Name": "",
+            "Parent Phone": "",
+            "Parent Email": "sundar@tampabaytamilacademy.org",
+            "Tamil Name": "சுந்தர்"
+        });
+        // Re-index cleanly
+        newStudents.forEach((st, idx) => {
+            st.ID = `S${String(idx + 1).padStart(3, '0')}`;
+        });
+    }
 
     appState.students = newStudents;
     console.log(`Loaded ${appState.teachers.length} teachers and ${appState.students.length} students from Excel`);
@@ -1351,27 +1454,44 @@ function switchTab(tabName) {
     document.getElementById("tab-students").classList.toggle("active", tabName === "Students");
     document.getElementById("tab-teachers").classList.toggle("active", tabName === "Teachers");
     document.getElementById("tab-committee").classList.toggle("active", tabName === "Committee");
-    if(document.getElementById("tab-admin-roster-students")) document.getElementById("tab-admin-roster-students").classList.toggle("active", tabName === "AdminRosterStudents");
-    if(document.getElementById("tab-admin-roster-teachers")) document.getElementById("tab-admin-roster-teachers").classList.toggle("active", tabName === "AdminRosterTeachers");
-    if(document.getElementById("tab-admin-roster-committee")) document.getElementById("tab-admin-roster-committee").classList.toggle("active", tabName === "AdminRosterCommittee");
+    if(document.getElementById("tab-admin-roster")) document.getElementById("tab-admin-roster").classList.toggle("active", tabName === "AdminRoster");
     if(document.getElementById("tab-dashboard")) document.getElementById("tab-dashboard").classList.toggle("active", tabName === "Dashboard");
+    if(document.getElementById("tab-system-tools")) document.getElementById("tab-system-tools").classList.toggle("active", tabName === "SystemTools");
 
     const attendanceSec = document.getElementById("attendance-section");
     const dashboardSec = document.getElementById("dashboard-section");
+    const adminToolbar = document.getElementById("admin-roster-toolbar");
+    const systemToolsSec = document.getElementById("tab-system-tools-content");
+
+    if (adminToolbar) {
+        adminToolbar.style.display = tabName === "AdminRoster" ? "block" : "none";
+    }
+
+    if (systemToolsSec) {
+        systemToolsSec.style.display = tabName === "SystemTools" ? "block" : "none";
+    }
 
     if (tabName === "Dashboard") {
         attendanceSec.style.display = "none";
         dashboardSec.style.display = "block";
         renderDashboard();
         return;
+    } else if (tabName === "SystemTools") {
+        attendanceSec.style.display = "none";
+        dashboardSec.style.display = "none";
+        return;
     } else {
         attendanceSec.style.display = "block";
         dashboardSec.style.display = "none";
     }
 
-    if(tabName.startsWith("AdminRoster")) currentSheetTitle.textContent = "Admin Roster Editor - " + tabName.replace("AdminRoster", "");
-    else currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : "Committee Roster";
-    thInfo.textContent = (tabName === "Students" || tabName === "AdminRosterStudents") ? "Grade" : (tabName === "Teachers" || tabName === "AdminRosterTeachers") ? "Class Assignment" : "Role";
+    if(tabName === "AdminRoster") {
+        currentSheetTitle.textContent = "Admin Roster - " + (appState.adminSubTab || "Students");
+        thInfo.textContent = (appState.adminSubTab === "Teachers") ? "Class Assignment" : (appState.adminSubTab === "Committee" || appState.adminSubTab === "Leadership") ? "Role" : "Grade";
+    } else {
+        currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : "Committee Roster";
+        thInfo.textContent = tabName === "Students" ? "Grade" : tabName === "Teachers" ? "Class Assignment" : "Role";
+    }
 
     const gridBar = document.getElementById("grid-controls-bar");
     const statusFiltersGroup = document.getElementById("status-filters-group");
@@ -1382,11 +1502,12 @@ function switchTab(tabName) {
         gridBar.style.display = "none";
         selectionStatsGroup.style.display = "none";
         thStatusCol.textContent = "Status Check";
-    } else if (tabName.startsWith("AdminRoster")) {
+    } else if (tabName === "AdminRoster") {
         gridBar.style.display = "flex";
         statusFiltersGroup.style.display = "none";
         selectionStatsGroup.style.display = "none";
         thStatusCol.textContent = "Action";
+        updateAdminRosterCounts();
     } else {
         gridBar.style.display = "flex";
         statusFiltersGroup.style.display = "flex";
@@ -1395,6 +1516,44 @@ function switchTab(tabName) {
     }
 
     renderList();
+}
+
+function switchAdminSubTab(subTab) {
+    appState.adminSubTab = subTab;
+    ['students', 'teachers', 'committee', 'leadership'].forEach(t => {
+        const btn = document.getElementById(`subtab-${t}`);
+        if (btn) btn.classList.toggle('active', subTab.toLowerCase() === t);
+    });
+    currentSheetTitle.textContent = `Admin Roster - ${subTab}`;
+    thInfo.textContent = subTab === "Students" ? "Grade" : (subTab === "Teachers" ? "Class Assignment" : "Role");
+    renderList();
+}
+
+function updateAdminRosterCounts() {
+    const cntS = document.getElementById("admin-count-students");
+    const cntT = document.getElementById("admin-count-teachers");
+    const cntC = document.getElementById("admin-count-committee");
+    const cntL = document.getElementById("admin-count-leadership");
+    if (cntS) cntS.textContent = appState.students.length;
+    if (cntT) cntT.textContent = appState.teachers.length;
+    if (cntC) cntC.textContent = COMMITTEE_ROSTER.length;
+    if (cntL) cntL.textContent = LEADERSHIP_ROSTER.length;
+}
+
+function saveAdminRosterExplicitly() {
+    appState.customRosterSaved = true;
+    saveStateToLocalStorage();
+    updateWorkbookData();
+    updateAdminRosterCounts();
+    
+    const notif = document.getElementById("roster-save-notification");
+    if (notif) {
+        notif.style.display = "block";
+        setTimeout(() => { notif.style.display = "none"; }, 3500);
+    }
+    logActivity(`Admin explicitly saved roster modifications permanently (${appState.students.length} students, ${appState.teachers.length} teachers).`);
+    renderList();
+    alert("✅ Roster saved successfully! All student and teacher updates are live.");
 }
 
 // Filter lists
@@ -1452,6 +1611,7 @@ function renderList() {
     badgeStudents.textContent = totalStudentsAtLoc;
     badgeTeachers.textContent = totalTeachersAtLoc;
     badgeCommittee.textContent = COMMITTEE_ROSTER.length;
+    updateAdminRosterCounts();
 
     if (tab === "Committee") {
         attendanceTbody.innerHTML = "";
@@ -1473,49 +1633,55 @@ function renderList() {
         attendanceTbody.innerHTML = "";
         const subTab = appState.adminSubTab || "Students";
 
-        // Header Row for Adds
+        // Header Row for Adds & Save shortcut
         const headerTr = document.createElement("tr");
         headerTr.style.background = "var(--accent-light)";
-        if (subTab === "Students") {
-            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewStudent()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Student</button></td>`;
-        } else if (subTab === "Teachers") {
-            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewTeacher()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Teacher</button></td>`;
-        } else if (subTab === "Committee") {
-            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewCommittee()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Committee</button></td>`;
-        } else if (subTab === "Leadership") {
-            headerTr.innerHTML = `<td colspan="4" style="padding: 10px; text-align: right;"><button class="btn btn-primary" onclick="addNewLeadership()" style="padding: 6px 12px; font-size: 0.85rem;">➕ Add Leadership</button></td>`;
-        }
+        let addBtnText = subTab === "Students" ? "➕ Add Student" : subTab === "Teachers" ? "➕ Add Teacher" : subTab === "Committee" ? "➕ Add Committee" : "➕ Add Leadership";
+        let addFunc = subTab === "Students" ? "addNewStudent()" : subTab === "Teachers" ? "addNewTeacher()" : subTab === "Committee" ? "addNewCommittee()" : "addNewLeadership()";
+        
+        headerTr.innerHTML = `
+            <td colspan="4" style="padding: 10px; text-align: right;">
+                <button class="btn btn-secondary" onclick="${addFunc}" style="padding: 6px 14px; font-size: 0.85rem; margin-right: 8px;">${addBtnText}</button>
+                <button class="btn btn-primary" onclick="saveAdminRosterExplicitly()" style="background: var(--success-color); border-color: var(--success-color); padding: 6px 14px; font-size: 0.85rem; font-weight: 700;">💾 Save Changes</button>
+            </td>
+        `;
         attendanceTbody.appendChild(headerTr);
 
         const list = subTab === "Students" ? appState.students : (subTab === "Teachers" ? appState.teachers : (subTab === "Leadership" ? LEADERSHIP_ROSTER : COMMITTEE_ROSTER));
         const itemType = subTab;
         const infoField = subTab === "Students" ? "Grade" : (subTab === "Teachers" ? "Class Assignment" : "Role");
 
+        let filteredCount = 0;
         list.forEach(item => {
+            const matchName = item.Name.toLowerCase().includes(appState.searchQuery);
+            const matchID = item.ID.toLowerCase().includes(appState.searchQuery);
+            if (!matchName && !matchID) return;
+
+            filteredCount++;
             const tr = document.createElement("tr");
             
-            let selectHtml = `<input type="text" value="${item[infoField]}" onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; width:100px; background:var(--bg-secondary); color:var(--text-primary);">`;
+            let selectHtml = `<input type="text" value="${item[infoField] || ''}" onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid var(--border-color); border-radius:4px; width:100%; max-width: 160px; background:var(--bg-secondary); color:var(--text-primary);">`;
             
             if (subTab === "Teachers") {
                 let options = ['Support', ...GRADES].map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
-                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
+                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid var(--border-color); border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
             } else if (subTab === "Students") {
                 let options = GRADES.map(g => `<option value="${g}" ${item[infoField] === g ? 'selected' : ''}>${g}</option>`).join('');
-                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
+                selectHtml = `<select onchange="updateRosterItem('${itemType}', '${item.ID}', '${infoField}', this.value)" style="padding: 4px; border:1px solid var(--border-color); border-radius:4px; background:var(--bg-secondary); color:var(--text-primary);"><option value="">--Select--</option>${options}</select>`;
             }
             
             tr.innerHTML = `
                 <td><strong>${item.ID}</strong></td>
-                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('${itemType}', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid #ccc; border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
+                <td><input type="text" value="${item.Name}" onchange="updateRosterItem('${itemType}', '${item.ID}', 'Name', this.value)" style="padding: 4px; border:1px solid var(--border-color); border-radius:4px; background:var(--bg-secondary); color:var(--text-primary); width: 100%;"></td>
                 <td>${selectHtml}</td>
                 <td class="center-align">
-                    <button class="btn btn-secondary" onclick="deleteRosterItem('${itemType}', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none;">Delete</button>
+                    <button class="btn btn-secondary" onclick="deleteRosterItem('${itemType}', '${item.ID}')" style="padding:4px 8px; font-size:12px; background:var(--danger-color); color: white; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
                 </td>
             `;
             attendanceTbody.appendChild(tr);
         });
 
-        document.getElementById("empty-state").style.display = list.length === 0 ? "block" : "none";
+        document.getElementById("empty-state").style.display = filteredCount === 0 ? "block" : "none";
         return;
     }
 
@@ -1628,7 +1794,7 @@ function generateSampleExcelTemplate() {
 
 // Export excel with new date column + Audit Logs sheet added
 function saveAndShareExcel(wb, filename) {
-    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
         try {
             const base64Data = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
             const Filesystem = window.Capacitor.Plugins.Filesystem;
@@ -1653,57 +1819,149 @@ function saveAndShareExcel(wb, filename) {
             alert("Export error: " + error.message);
         }
     } else {
-        XLSX.writeFile(wb, filename);
+        try {
+            XLSX.writeFile(wb, filename);
+        } catch (err) {
+            console.warn("XLSX.writeFile fallback to blob download:", err);
+            try {
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (blobErr) {
+                alert("Could not export Excel: " + blobErr.message);
+            }
+        }
     }
 }
 
 function exportExcel() {
     const activeDate = getActiveDateString();
+    updateWorkbookData();
 
-    if (appState.workbook) {
-        updateWorkbookData();
-        saveAndShareExcel(appState.workbook, `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`);
-        return;
-    }
-
+    // Create a complete, perfectly structured export workbook with all classes and current attendance
     const wb = XLSX.utils.book_new();
     const fridays = getFridaysInSchoolYear();
+    if (!fridays.includes(activeDate)) {
+        fridays.push(activeDate);
+        fridays.sort();
+    }
 
-    // 1. Prepare teachers sheet
+    const sheetDef = [
+        { name: "illanthalir", grade: "Ilanthalir", sections: false },
+        { name: "Mazhalai", grade: "Mazhalai", sections: false },
+        { name: "Nilai-1", grade: "Nilai 1", sections: false },
+        { name: "Nilai-2", grade: "Nilai 2", sections: true, secList: ["Nilai 2A", "Nilai 2B"] },
+        { name: "Nilai-3", grade: "Nilai 3", sections: true, secList: ["Nilai 3A", "Nilai 3B"] },
+        { name: "Nilai-4", grade: "Nilai 4", sections: true, secList: ["Nilai 4A", "Nilai 4B"] },
+        { name: "Nilai-5", grade: "Nilai 5", sections: false },
+        { name: "Nilai-6", grade: "Nilai 6", sections: false },
+        { name: "Nilai-7", grade: "Nilai 7", sections: false },
+        { name: "Nilai-8", grade: "Nilai 8", sections: false }
+    ];
+
+    sheetDef.forEach(def => {
+        let studentsInClass = [];
+        if (def.sections) {
+            studentsInClass = appState.students.filter(s => def.secList.includes(s.Grade));
+        } else {
+            studentsInClass = appState.students.filter(s => s.Grade === def.grade);
+        }
+
+        const dataRows = studentsInClass.map(s => {
+            const parts = s.Name.split(" ");
+            const fName = parts[0] || s.Name;
+            const lName = parts.slice(1).join(" ");
+            const row = {
+                "First Name": fName,
+                "Last Name": lName,
+                "Date Of Birth": s["Date of Birth"] || "",
+                "Nilai": s.Grade.startsWith("Nilai ") ? s.Grade.replace(/[AB]$/, '') : s.Grade
+            };
+            if (def.sections) {
+                row["Class"] = s.Grade.replace("Nilai ", "");
+            }
+            fridays.forEach(d => {
+                const st = appState.attendance.Students[d]?.[s.ID];
+                row[d] = st === "present" ? "P" : st === "absent" ? "A" : "";
+            });
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(dataRows.length ? dataRows : [{ "First Name": "None", "Last Name": "", "Date Of Birth": "", "Nilai": def.grade }]);
+        XLSX.utils.book_append_sheet(wb, ws, def.name);
+    });
+
+    // Teachers Sheet
     const teachersData = appState.teachers.map(t => {
-        const row = { ID: t.ID, Name: t.Name, Location: t.Location, "Class Assignment": t["Class Assignment"], Email: t.Email, Phone: t.Phone };
-        fridays.forEach(date => {
-            row[date] = appState.attendance.Teachers[date]?.[t.ID] || "";
+        const parts = t.Name.split(" ");
+        const fName = parts[0] || t.Name;
+        const lName = parts.slice(1).join(" ");
+        const row = {
+            "First Name": fName,
+            "Last Name": lName,
+            "Class Assignment": t["Class Assignment"],
+            "Room": t.Room || "",
+            "Email": t.Email || "",
+            "Phone": t.Phone || ""
+        };
+        fridays.forEach(d => {
+            const st = appState.attendance.Teachers[d]?.[t.ID];
+            row[d] = st === "present" ? "P" : st === "absent" ? "A" : "";
         });
         return row;
     });
-
-    // 2. Prepare students sheet
-    const studentsData = appState.students.map(s => {
-        const row = { ID: s.ID, Name: s.Name, Location: s.Location, Grade: s.Grade, "Parent Email": s["Parent Email"] };
-        fridays.forEach(date => {
-            row[date] = appState.attendance.Students[date]?.[s.ID] || "";
-        });
-        return row;
-    });
-
-    // 3. Prepare Audit Logs Sheet
-    const logsData = appState.logs.map((logLine, index) => ({
-        "Log Number": index + 1,
-        "Activity Details": logLine
-    }));
-
     const wsTeachers = XLSX.utils.json_to_sheet(teachersData);
-    const wsStudents = XLSX.utils.json_to_sheet(studentsData);
-    const wsLogs = XLSX.utils.json_to_sheet(logsData);
-    const wsCommittee = XLSX.utils.json_to_sheet(COMMITTEE_ROSTER);
+    XLSX.utils.book_append_sheet(wb, wsTeachers, "Teacher");
 
-    XLSX.utils.book_append_sheet(wb, wsTeachers, "Teachers");
-    XLSX.utils.book_append_sheet(wb, wsStudents, "Students");
-    XLSX.utils.book_append_sheet(wb, wsLogs, "Audit Logs");
+    // Committee Sheet
+    const committeeData = COMMITTEE_ROSTER.map(c => ({
+        "ID": c.ID,
+        "Name": c.Name,
+        "Role": c.Role
+    }));
+    const wsCommittee = XLSX.utils.json_to_sheet(committeeData);
     XLSX.utils.book_append_sheet(wb, wsCommittee, "Committee");
 
-    saveAndShareExcel(wb, `tamil_school_attendance_${activeDate}.xlsx`);
+    // Audit Logs Sheet
+    const logsData = (appState.logs || []).map((logLine, index) => ({
+        "Index": index + 1,
+        "Activity Details": logLine
+    }));
+    const wsLogs = XLSX.utils.json_to_sheet(logsData.length ? logsData : [{ "Index": 1, "Activity Details": "No activity logged" }]);
+    XLSX.utils.book_append_sheet(wb, wsLogs, "Audit Logs");
+
+    // Dashboard Summary Sheet
+    const summaryData = GRADES.map(g => {
+        const classKids = appState.students.filter(s => s.Grade === g);
+        let p = 0, a = 0, u = 0;
+        classKids.forEach(s => {
+            const st = appState.attendance.Students[activeDate]?.[s.ID];
+            if (st === "present") p++;
+            else if (st === "absent") a++;
+            else u++;
+        });
+        const pct = classKids.length > 0 ? Math.round((p / classKids.length) * 100) + "%" : "0%";
+        return {
+            "Grade / Class": g,
+            "Room": CLASS_ROOMS[g] || "-",
+            "Total Students": classKids.length,
+            "Present": p,
+            "Absent": a,
+            "Unmarked": u,
+            "Attendance Rate": pct
+        };
+    });
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary_Dashboard");
+
+    saveAndShareExcel(wb, `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`);
 }
 
 // Submit attendance
@@ -1879,60 +2137,212 @@ if (localStorage.getItem("attendance_tracker_theme") === "light") {
     document.body.classList.remove("dark-mode");
 }
 
+function populateKpiDateSelector() {
+    const dateSelect = document.getElementById("kpi-date-select");
+    if (!dateSelect) return;
+    const dates = new Set();
+    const currentActive = getActiveDateString();
+    dates.add(currentActive);
+    if (appState.attendance.Students) {
+        Object.keys(appState.attendance.Students).forEach(d => dates.add(d));
+    }
+    if (appState.lockedDates) {
+        appState.lockedDates.forEach(d => dates.add(d));
+    }
+    const sortedDates = Array.from(dates).filter(Boolean).sort().reverse();
+    
+    const prevVal = dateSelect.value || currentActive;
+    dateSelect.innerHTML = "";
+    sortedDates.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d;
+        opt.textContent = `📅 ${d}${d === currentActive ? ' (Active Today)' : ''}`;
+        dateSelect.appendChild(opt);
+    });
+    const allOpt = document.createElement("option");
+    allOpt.value = "all";
+    allOpt.textContent = "📊 All Sessions (Cumulative)";
+    dateSelect.appendChild(allOpt);
+
+    if (Array.from(dateSelect.options).some(o => o.value === prevVal)) {
+        dateSelect.value = prevVal;
+    } else {
+        dateSelect.value = currentActive;
+    }
+}
+
+function handleKpiDateChange() {
+    renderDashboard();
+}
+
 function renderDashboard() {
-    const activeDate = getActiveDateString();
-    let present = 0;
-    let absent = 0;
-    let total = 0;
+    populateKpiDateSelector();
+    const dateSelect = document.getElementById("kpi-date-select");
+    const selectedDate = dateSelect ? dateSelect.value : getActiveDateString();
+
+    const studentsAtLoc = appState.students.filter(s => s.Location === appState.currentLocation);
+    const teachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation);
+
+    let presentCount = 0;
+    let absentCount = 0;
+    let unmarkedCount = 0;
     const classStats = {};
 
-    appState.students.forEach(s => {
-        if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, total: 0 };
-        Object.keys(appState.attendance.Students).forEach(date => {
-            const status = appState.attendance.Students[date]?.[s.ID];
-            if (status === "present" || status === "absent") {
-                total++;
-                classStats[s.Grade].total++;
-                if (status === "present") {
-                    present++;
-                    classStats[s.Grade].present++;
-                }
-                if (status === "absent") absent++;
-            }
-        });
+    GRADES.forEach(g => {
+        classStats[g] = { present: 0, absent: 0, unmarked: 0, total: 0 };
     });
 
-    const overallPct = total > 0 ? Math.round((present / total) * 100) + "%" : "No Data";
-    const kpiOverall = document.getElementById("kpi-overall");
-    if (kpiOverall) kpiOverall.textContent = overallPct;
+    if (selectedDate === "all") {
+        // Cumulative across all dates
+        const allDates = new Set();
+        Object.keys(appState.attendance.Students || {}).forEach(d => allDates.add(d));
+        const dateList = Array.from(allDates);
 
+        studentsAtLoc.forEach(s => {
+            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, absent: 0, unmarked: 0, total: 0 };
+            dateList.forEach(d => {
+                const st = appState.attendance.Students[d]?.[s.ID];
+                if (st === "present") {
+                    presentCount++;
+                    classStats[s.Grade].present++;
+                    classStats[s.Grade].total++;
+                } else if (st === "absent") {
+                    absentCount++;
+                    classStats[s.Grade].absent++;
+                    classStats[s.Grade].total++;
+                }
+            });
+        });
+    } else {
+        // Specific active date
+        studentsAtLoc.forEach(s => {
+            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, absent: 0, unmarked: 0, total: 0 };
+            classStats[s.Grade].total++;
+
+            const st = appState.attendance.Students[selectedDate]?.[s.ID];
+            if (st === "present") {
+                presentCount++;
+                classStats[s.Grade].present++;
+            } else if (st === "absent") {
+                absentCount++;
+                classStats[s.Grade].absent++;
+            } else {
+                unmarkedCount++;
+                classStats[s.Grade].unmarked++;
+            }
+        });
+    }
+
+    const totalEvaluated = selectedDate === "all" ? (presentCount + absentCount) : studentsAtLoc.length;
+    const overallPctVal = totalEvaluated > 0 ? Math.round((presentCount / totalEvaluated) * 100) : 0;
+    
+    // Update Stat KPI cards
+    const kpiOverall = document.getElementById("kpi-overall");
+    const kpiOverallRatio = document.getElementById("kpi-overall-ratio");
+    const kpiPresentCount = document.getElementById("kpi-present-count");
+    const kpiPresentPct = document.getElementById("kpi-present-pct");
+    const kpiAbsentCount = document.getElementById("kpi-absent-count");
+    const kpiAbsentPct = document.getElementById("kpi-absent-pct");
+    const kpiTeachersCount = document.getElementById("kpi-teachers-count");
+    const kpiTeachersPct = document.getElementById("kpi-teachers-pct");
+
+    if (kpiOverall) kpiOverall.textContent = totalEvaluated > 0 ? `${overallPctVal}%` : "No Data";
+    if (kpiOverallRatio) kpiOverallRatio.textContent = `${presentCount} Present / ${totalEvaluated} Total Students`;
+    if (kpiPresentCount) kpiPresentCount.textContent = presentCount;
+    if (kpiPresentPct) kpiPresentPct.textContent = totalEvaluated > 0 ? `${Math.round((presentCount/totalEvaluated)*100)}% of Roster` : "0%";
+    if (kpiAbsentCount) kpiAbsentCount.textContent = absentCount;
+    if (kpiAbsentPct) kpiAbsentPct.textContent = totalEvaluated > 0 ? `${Math.round((absentCount/totalEvaluated)*100)}% of Roster` : "0%";
+
+    // Teacher attendance
+    let tPresent = 0, tAbsent = 0;
+    teachersAtLoc.forEach(t => {
+        const st = selectedDate === "all" ? null : appState.attendance.Teachers[selectedDate]?.[t.ID];
+        if (st === "present") tPresent++;
+        else if (st === "absent") tAbsent++;
+    });
+    if (kpiTeachersCount) kpiTeachersCount.textContent = selectedDate === "all" ? teachersAtLoc.length : `${tPresent} / ${teachersAtLoc.length}`;
+    if (kpiTeachersPct) kpiTeachersPct.textContent = selectedDate === "all" ? "Total Active Faculty" : `${teachersAtLoc.length > 0 ? Math.round((tPresent / teachersAtLoc.length) * 100) : 0}% Present`;
+
+    // Render Class List breakdown
     const classList = document.getElementById("kpi-class-list");
     if (classList) {
         classList.innerHTML = "";
-        for (const [grade, stats] of Object.entries(classStats)) {
+        GRADES.forEach(grade => {
+            const stats = classStats[grade] || { present: 0, total: 0, absent: 0 };
             if (stats.total > 0) {
-                const pct = Math.round((stats.present / stats.total) * 100);
+                const pct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+                const roomStr = CLASS_ROOMS[grade] ? ` (Room ${CLASS_ROOMS[grade]})` : "";
                 const li = document.createElement("li");
+                li.style.padding = "10px 12px";
                 li.style.marginBottom = "8px";
-                li.innerHTML = `<strong>${grade}:</strong> ${pct}% (${stats.present}/${stats.total})`;
+                li.style.borderRadius = "8px";
+                li.style.background = "var(--bg-primary)";
+                li.style.border = "1px solid var(--border-color)";
+                li.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: 600; font-size: 0.95rem;">${grade}${roomStr}</span>
+                        <div>
+                            <span style="font-weight: 700; color: ${pct >= 85 ? 'var(--success-color)' : pct >= 70 ? 'var(--warning-color)' : 'var(--danger-color)'}; font-size: 0.95rem;">${pct}%</span>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: 4px;">(${stats.present}/${stats.total})</span>
+                        </div>
+                    </div>
+                    <div style="background: var(--border-color); height: 6px; border-radius: 4px; overflow: hidden; display: flex;">
+                        <div style="background: var(--success-color); width: ${pct}%; height: 100%;"></div>
+                        <div style="background: var(--danger-color); width: ${stats.total > 0 ? Math.round((stats.absent/stats.total)*100) : 0}%; height: 100%;"></div>
+                    </div>
+                `;
                 classList.appendChild(li);
             }
-        }
+        });
     }
 
+    // Render Pie Chart
     if (window.Chart) {
-        if (window.kpiChart) window.kpiChart.destroy();
+        if (window.kpiChart) {
+            try { window.kpiChart.destroy(); } catch(e) {}
+        }
         const chartCanvas = document.getElementById("kpi-pie-chart");
         if (chartCanvas) {
             const ctx = chartCanvas.getContext("2d");
+            const chartLabels = selectedDate === "all" ? ["Present", "Absent"] : ["Present", "Absent", "Unmarked"];
+            const chartData = selectedDate === "all" ? [presentCount, absentCount] : [presentCount, absentCount, unmarkedCount];
+            const chartColors = selectedDate === "all" ? ["#10b981", "#ef4444"] : ["#10b981", "#ef4444", "#94a3b8"];
+
             window.kpiChart = new Chart(ctx, {
                 type: "pie",
                 data: {
-                    labels: ["Present", "Absent"],
+                    labels: chartLabels,
                     datasets: [{
-                        data: [present, absent],
-                        backgroundColor: ["#10b981", "#ef4444"]
+                        data: chartData,
+                        backgroundColor: chartColors,
+                        borderColor: "transparent",
+                        borderWidth: 2
                     }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: document.body.classList.contains('dark-mode') ? '#f8fafc' : '#1e293b',
+                                font: { family: "'Plus Jakarta Sans', sans-serif", size: 12, weight: '600' },
+                                padding: 14
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = chartData.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return ` ${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
