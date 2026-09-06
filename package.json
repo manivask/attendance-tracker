@@ -4,6 +4,9 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "prepare-assets": "node -e \"const fs=require('fs'); fs.mkdirSync('www',{recursive:true}); ['index.html','app.js','style.css','chart.js','manifest.json','attendance_template.xlsx','TBTA-2026-2027- RHS-Student_Attendance.xlsx','TBTA-2026- 27- Riverview High School-Students  list.xlsx'].forEach(f=>{if(fs.existsSync(f)) fs.copyFileSync(f, 'www/'+f);});\"",
+    "sync": "npm run prepare-assets && npx cap sync android",
+    "open:android": "npx cap open android",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

@@ -38,7 +38,7 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          cp index.html app.js style.css manifest.json *.xlsx www/ || true
+          cp index.html app.js style.css chart.js manifest.json *.xlsx www/ || true
           cp -r assets www/ || true
 
       - name: Sync Capacitor
