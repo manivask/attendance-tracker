@@ -51,6 +51,7 @@ const COMMITTEE_ROSTER = [
 let appState = {
     currentLocation: LOCATIONS[0],
     currentTab: "Students",
+    currentMode: "Attendance", // "Attendance" or "Homework"
     currentFilter: "all",
     searchQuery: "",
     currentUserRole: null,
@@ -62,6 +63,7 @@ let appState = {
         Teachers: {},
         Students: {}
     },
+    homework: {}, // { [dateStr]: { [studentId]: { ontime: 'Y', perfection: 'Y', handwriting: 'Y', effort: 'Y' } } }
 
     lockedDates: [],
     attestations: {},
@@ -124,6 +126,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function checkAccessGate() {
     const locSelect = document.getElementById("location-select");
     const tabsBar = document.querySelector(".location-and-tabs-bar .tabs");
+    const mainModePicker = document.getElementById("main-mode-picker");
+    const mainModeSelect = document.getElementById("main-mode-select");
 
     if (appState.currentUserRole) {
         pinGateOverlay.style.display = "none";
@@ -188,8 +192,17 @@ function checkAccessGate() {
                 document.getElementById("main-class-select").value = appState.currentUserRole.grade;
             }
 
-            // Auto initialize class students to Present if unmarked
+            // Show mode picker
+            if (mainModePicker) {
+                mainModePicker.style.display = "flex";
+                if (mainModeSelect) mainModeSelect.value = appState.currentMode || "Attendance";
+            }
+
+            // Auto initialize class students to Present / Homework defaults if unmarked
             initializeDefaultAttendanceForClass();
+            if (appState.currentMode === "Homework") {
+                initializeDefaultHomeworkForClass();
+            }
         } else {
             // Admin: restore normal UI
             if (locSelect) {
@@ -207,6 +220,10 @@ function checkAccessGate() {
             const mainClassPicker = document.getElementById("main-class-picker");
             if (mainClassPicker) {
                 mainClassPicker.style.display = "none";
+            }
+            if (mainModePicker) {
+                mainModePicker.style.display = appState.currentTab === "Students" ? "flex" : "none";
+                if (mainModeSelect) mainModeSelect.value = appState.currentMode || "Attendance";
             }
         }
     } else {
@@ -398,6 +415,112 @@ function initializeDefaultAttendanceForClass() {
         saveStateToLocalStorage();
         renderList();
     }
+}
+
+// Auto-populate unmarked homework for current class / active date
+function initializeDefaultHomeworkForClass() {
+    const activeDate = getActiveDateString();
+    const loc = (appState.currentUserRole && appState.currentUserRole.location) || appState.currentLocation;
+    const grade = (appState.currentUserRole && appState.currentUserRole.role === "Teacher") ? appState.currentUserRole.grade : null;
+
+    if (!appState.homework) appState.homework = {};
+    if (!appState.homework[activeDate]) appState.homework[activeDate] = {};
+
+    let initializedAny = false;
+    appState.students.forEach(s => {
+        if (s.Location === loc && (!grade || s.Grade === grade)) {
+            if (!appState.homework[activeDate][s.ID]) {
+                appState.homework[activeDate][s.ID] = {
+                    ontime: "Y",
+                    perfection: "Y",
+                    handwriting: "Y",
+                    effort: "Y"
+                };
+                initializedAny = true;
+            }
+        }
+    });
+
+    if (initializedAny) {
+        logActivity(`Initialized default Homework scores (Y) for ${grade || "all classes"} at ${loc}`);
+        saveStateToLocalStorage();
+    }
+}
+
+// Activity Mode Switch (Attendance vs Homework)
+function handleModeChange() {
+    const modeSelect = document.getElementById("main-mode-select");
+    if (!modeSelect) return;
+    appState.currentMode = modeSelect.value;
+    logActivity(`Switched activity mode to: ${appState.currentMode}`);
+
+    if (appState.currentMode === "Homework") {
+        initializeDefaultHomeworkForClass();
+    }
+
+    saveStateToLocalStorage();
+    renderList();
+}
+
+// Update individual homework category score
+function setHomework(id, category, value) {
+    const activeDate = getActiveDateString();
+    const isLocked = appState.lockedDates.includes(activeDate);
+
+    if (isLocked && !canBypassLock()) {
+        alert("This record is locked and cannot be edited.");
+        return;
+    }
+
+    if (!appState.homework) appState.homework = {};
+    if (!appState.homework[activeDate]) appState.homework[activeDate] = {};
+    if (!appState.homework[activeDate][id]) {
+        appState.homework[activeDate][id] = { ontime: "Y", perfection: "Y", handwriting: "Y", effort: "Y" };
+    }
+
+    const oldVal = appState.homework[activeDate][id][category] || "-";
+    appState.homework[activeDate][id][category] = value;
+
+    const student = appState.students.find(s => s.ID === id);
+    const sName = student ? student.Name : id;
+
+    logActivity(`${appState.currentUserRole?.name || "User"} set Homework '${category}' to '${value}' for ${sName} (${id}) on ${activeDate}`);
+    saveStateToLocalStorage();
+    renderList();
+}
+
+// Quick batch mark all homework for current class
+function markAllHomeworkForClass(value) {
+    const activeDate = getActiveDateString();
+    const isLocked = appState.lockedDates.includes(activeDate);
+
+    if (isLocked && !canBypassLock()) {
+        alert("This record is locked and cannot be edited.");
+        return;
+    }
+
+    if (!appState.homework) appState.homework = {};
+    if (!appState.homework[activeDate]) appState.homework[activeDate] = {};
+
+    const loc = (appState.currentUserRole && appState.currentUserRole.location) || appState.currentLocation;
+    const grade = (appState.currentUserRole && appState.currentUserRole.role === "Teacher") ? appState.currentUserRole.grade : null;
+
+    let count = 0;
+    appState.students.forEach(s => {
+        if (s.Location === loc && (!grade || s.Grade === grade)) {
+            appState.homework[activeDate][s.ID] = {
+                ontime: value,
+                perfection: value,
+                handwriting: value,
+                effort: value
+            };
+            count++;
+        }
+    });
+
+    logActivity(`${appState.currentUserRole?.name || "User"} marked all ${count} students' homework to '${value}' for ${grade || "all classes"}`);
+    saveStateToLocalStorage();
+    renderList();
 }
 
 function handlePinInput() {
@@ -1462,6 +1585,11 @@ function switchTab(tabName) {
     const dashboardSec = document.getElementById("dashboard-section");
     const adminToolbar = document.getElementById("admin-roster-toolbar");
     const systemToolsSec = document.getElementById("tab-system-tools-content");
+    const mainModePicker = document.getElementById("main-mode-picker");
+
+    if (mainModePicker) {
+        mainModePicker.style.display = tabName === "Students" ? "flex" : "none";
+    }
 
     if (adminToolbar) {
         adminToolbar.style.display = tabName === "AdminRoster" ? "block" : "none";
@@ -1489,30 +1617,52 @@ function switchTab(tabName) {
         currentSheetTitle.textContent = "Admin Roster - " + (appState.adminSubTab || "Students");
         thInfo.textContent = (appState.adminSubTab === "Teachers") ? "Class Assignment" : (appState.adminSubTab === "Committee" || appState.adminSubTab === "Leadership") ? "Role" : "Grade";
     } else {
-        currentSheetTitle.textContent = tabName === "Students" ? "Students List" : tabName === "Teachers" ? "Teachers List" : "Committee Roster";
-        thInfo.textContent = tabName === "Students" ? "Grade" : tabName === "Teachers" ? "Class Assignment" : "Role";
+        if (tabName === "Students") {
+            currentSheetTitle.textContent = appState.currentMode === "Homework" ? "Students Homework Evaluation" : "Students List";
+            thInfo.textContent = "Grade";
+        } else if (tabName === "Teachers") {
+            currentSheetTitle.textContent = "Teachers List";
+            thInfo.textContent = "Class Assignment";
+        } else {
+            currentSheetTitle.textContent = "Committee Roster";
+            thInfo.textContent = "Role";
+        }
     }
 
     const gridBar = document.getElementById("grid-controls-bar");
     const statusFiltersGroup = document.getElementById("status-filters-group");
+    const homeworkActionsGroup = document.getElementById("homework-actions-group");
     const selectionStatsGroup = document.getElementById("selection-stats-container");
+    const homeworkStatsGroup = document.getElementById("homework-stats-container");
     const thStatusCol = document.getElementById("th-status-col");
 
     if (tabName === "Committee") {
         gridBar.style.display = "none";
-        selectionStatsGroup.style.display = "none";
-        thStatusCol.textContent = "Status Check";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
+        if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+        if (thStatusCol) thStatusCol.textContent = "Status Check";
     } else if (tabName === "AdminRoster") {
         gridBar.style.display = "flex";
-        statusFiltersGroup.style.display = "none";
-        selectionStatsGroup.style.display = "none";
-        thStatusCol.textContent = "Action";
+        if (statusFiltersGroup) statusFiltersGroup.style.display = "none";
+        if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
+        if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+        if (thStatusCol) thStatusCol.textContent = "Action";
         updateAdminRosterCounts();
     } else {
         gridBar.style.display = "flex";
-        statusFiltersGroup.style.display = "flex";
-        selectionStatsGroup.style.display = "flex";
-        thStatusCol.textContent = "Status";
+        if (appState.currentMode === "Homework" && tabName === "Students") {
+            if (statusFiltersGroup) statusFiltersGroup.style.display = "none";
+            if (homeworkActionsGroup) homeworkActionsGroup.style.display = "flex";
+            if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
+            if (homeworkStatsGroup) homeworkStatsGroup.style.display = "flex";
+        } else {
+            if (statusFiltersGroup) statusFiltersGroup.style.display = "flex";
+            if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
+            if (selectionStatsGroup) selectionStatsGroup.style.display = "flex";
+            if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+            if (thStatusCol) thStatusCol.textContent = "Status";
+        }
     }
 
     renderList();
@@ -1584,6 +1734,15 @@ function renderList() {
     const tab = appState.currentTab;
     const activeDate = getActiveDateString();
     const isLocked = appState.lockedDates.includes(activeDate);
+    const isHomeworkMode = (tab === "Students" && appState.currentMode === "Homework");
+
+    // Sync mode picker
+    const mainModePicker = document.getElementById("main-mode-picker");
+    const mainModeSelect = document.getElementById("main-mode-select");
+    if (mainModePicker) {
+        mainModePicker.style.display = tab === "Students" ? "flex" : "none";
+        if (mainModeSelect) mainModeSelect.value = appState.currentMode || "Attendance";
+    }
 
     // Populate assigned teachers info for teachers
     const teachersInfoDiv = document.getElementById("assigned-teachers-info");
@@ -1695,66 +1854,160 @@ function renderList() {
         }
     }
 
-    let presentCount = 0;
-    let absentCount = 0;
-    let unmarkedCount = 0;
+    // Toggle Header & Toolbar Controls according to mode
+    const statusFiltersGroup = document.getElementById("status-filters-group");
+    const homeworkActionsGroup = document.getElementById("homework-actions-group");
+    const selectionStatsGroup = document.getElementById("selection-stats-container");
+    const homeworkStatsGroup = document.getElementById("homework-stats-container");
+    const tableHeadersRow = document.getElementById("table-headers-row");
 
-    items.forEach(item => {
-        const status = appState.attendance[tab][activeDate]?.[item.ID];
-        if (status === "present") presentCount++;
-        else if (status === "absent") absentCount++;
-        else unmarkedCount++;
-    });
+    if (isHomeworkMode) {
+        currentSheetTitle.textContent = "Students Homework Evaluation";
+        if (statusFiltersGroup) statusFiltersGroup.style.display = "none";
+        if (homeworkActionsGroup) homeworkActionsGroup.style.display = "flex";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
+        if (homeworkStatsGroup) homeworkStatsGroup.style.display = "flex";
 
-    statPresent.textContent = presentCount;
-    statAbsent.textContent = absentCount;
-    statUnmarked.textContent = unmarkedCount;
+        tableHeadersRow.innerHTML = `
+            <th style="width: 70px;">ID</th>
+            <th>Name</th>
+            <th id="th-info" style="min-width: 90px;">Grade</th>
+            <th class="th-hw" title="Ontime submission">⏱️ Ontime</th>
+            <th class="th-hw" title="Accurate and complete homework">⭐ Perfection</th>
+            <th class="th-hw" title="Clean and neat handwriting">✍️ Handwriting</th>
+            <th class="th-hw" title="Effort and dedication">💪 Effort</th>
+        `;
+
+        // Calculate Homework stats
+        let totalOntime = 0, totalPerf = 0, totalHand = 0, totalEff = 0;
+        items.forEach(s => {
+            const hw = appState.homework?.[activeDate]?.[s.ID] || { ontime: 'Y', perfection: 'Y', handwriting: 'Y', effort: 'Y' };
+            if (hw.ontime === 'Y') totalOntime++;
+            if (hw.perfection === 'Y') totalPerf++;
+            if (hw.handwriting === 'Y') totalHand++;
+            if (hw.effort === 'Y') totalEff++;
+        });
+
+        const totalKids = items.length;
+        const statOntime = document.getElementById("stat-hw-ontime");
+        const statPerf = document.getElementById("stat-hw-perf");
+        const statHand = document.getElementById("stat-hw-hand");
+        const statEff = document.getElementById("stat-hw-eff");
+
+        if (statOntime) statOntime.textContent = `${totalOntime}/${totalKids}`;
+        if (statPerf) statPerf.textContent = `${totalPerf}/${totalKids}`;
+        if (statHand) statHand.textContent = `${totalHand}/${totalKids}`;
+        if (statEff) statEff.textContent = `${totalEff}/${totalKids}`;
+
+    } else {
+        currentSheetTitle.textContent = tab === "Students" ? "Students List" : "Teachers List";
+        if (statusFiltersGroup) statusFiltersGroup.style.display = "flex";
+        if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = "flex";
+        if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+
+        tableHeadersRow.innerHTML = `
+            <th style="width: 80px;">ID</th>
+            <th>Name</th>
+            <th id="th-info">${tab === "Students" ? "Grade" : "Class Assignment"}</th>
+            <th class="center-align" id="th-status-col">Status</th>
+        `;
+
+        let presentCount = 0;
+        let absentCount = 0;
+        let unmarkedCount = 0;
+
+        items.forEach(item => {
+            const status = appState.attendance[tab][activeDate]?.[item.ID];
+            if (status === "present") presentCount++;
+            else if (status === "absent") absentCount++;
+            else unmarkedCount++;
+        });
+
+        statPresent.textContent = presentCount;
+        statAbsent.textContent = absentCount;
+        statUnmarked.textContent = unmarkedCount;
+    }
 
     attendanceTbody.innerHTML = "";
     let filteredCount = 0;
 
     items.forEach(item => {
-        const status = appState.attendance[tab][activeDate]?.[item.ID];
-
-        if (appState.currentFilter === "present" && status !== "present") return;
-        if (appState.currentFilter === "absent" && status !== "absent") return;
-        if (appState.currentFilter === "unmarked" && status) return;
-
         const matchName = item.Name.toLowerCase().includes(appState.searchQuery);
         const matchID = item.ID.toLowerCase().includes(appState.searchQuery);
         if (!matchName && !matchID) return;
 
-        filteredCount++;
-        const tr = document.createElement("tr");
-        const infoVal = tab === "Students" ? item.Grade : item["Class Assignment"];
+        if (isHomeworkMode) {
+            filteredCount++;
+            const tr = document.createElement("tr");
+            const hwData = appState.homework?.[activeDate]?.[item.ID] || { ontime: "Y", perfection: "Y", handwriting: "Y", effort: "Y" };
 
-        let statusControlHtml = "";
-        // Lock controls ONLY if date is locked AND logged in user is NOT Principal or VP
-        if (isLocked && !canBypassLock()) {
-            const displayStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unmarked";
-            const statusClass = status ? status : "unmarked";
-            statusControlHtml = `<span class="locked-cell ${statusClass}">${displayStatus}</span>`;
-        } else {
-            statusControlHtml = `
-                <div class="status-selector">
-                    <button class="status-opt present ${status === 'present' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'present')">P</button>
-                    <button class="status-opt absent ${status === 'absent' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'absent')">A</button>
-                </div>
+            // Helper to render Y / N toggle
+            const renderHwToggle = (category, currentVal) => {
+                if (isLocked && !canBypassLock()) {
+                    const isY = currentVal === "Y";
+                    return `<span class="hw-badge ${isY ? 'yes' : 'no'}">${currentVal || '-'}</span>`;
+                }
+                return `
+                    <div class="hw-toggle-group">
+                        <button type="button" class="hw-opt yes ${currentVal === 'Y' ? 'active' : ''}" onclick="setHomework('${item.ID}', '${category}', 'Y')">Y</button>
+                        <button type="button" class="hw-opt no ${currentVal === 'N' ? 'active' : ''}" onclick="setHomework('${item.ID}', '${category}', 'N')">N</button>
+                    </div>
+                `;
+            };
+
+            const idHtml = `<strong style="cursor:pointer; color:var(--accent-color); text-decoration:underline;" onclick="openStudentModal('${item.ID}')">${item.ID}</strong>`;
+
+            tr.innerHTML = `
+                <td>${idHtml}</td>
+                <td><strong>${item.Name}</strong></td>
+                <td>${item.Grade}</td>
+                <td class="hw-cell">${renderHwToggle('ontime', hwData.ontime)}</td>
+                <td class="hw-cell">${renderHwToggle('perfection', hwData.perfection)}</td>
+                <td class="hw-cell">${renderHwToggle('handwriting', hwData.handwriting)}</td>
+                <td class="hw-cell">${renderHwToggle('effort', hwData.effort)}</td>
             `;
-        }
+            attendanceTbody.appendChild(tr);
 
-        let idHtml = `<strong>${item.ID}</strong>`;
-        if (tab === "Students") {
-            idHtml = `<strong style="cursor:pointer; color:var(--accent-color); text-decoration:underline;" onclick="openStudentModal('${item.ID}')">${item.ID}</strong>`;
-        }
+        } else {
+            const status = appState.attendance[tab][activeDate]?.[item.ID];
 
-        tr.innerHTML = `
-            <td>${idHtml}</td>
-            <td>${item.Name}</td>
-            <td>${infoVal}</td>
-            <td class="center-align">${statusControlHtml}</td>
-        `;
-        attendanceTbody.appendChild(tr);
+            if (appState.currentFilter === "present" && status !== "present") return;
+            if (appState.currentFilter === "absent" && status !== "absent") return;
+            if (appState.currentFilter === "unmarked" && status) return;
+
+            filteredCount++;
+            const tr = document.createElement("tr");
+            const infoVal = tab === "Students" ? item.Grade : item["Class Assignment"];
+
+            let statusControlHtml = "";
+            // Lock controls ONLY if date is locked AND logged in user is NOT Principal or VP
+            if (isLocked && !canBypassLock()) {
+                const displayStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unmarked";
+                const statusClass = status ? status : "unmarked";
+                statusControlHtml = `<span class="locked-cell ${statusClass}">${displayStatus}</span>`;
+            } else {
+                statusControlHtml = `
+                    <div class="status-selector">
+                        <button class="status-opt present ${status === 'present' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'present')">P</button>
+                        <button class="status-opt absent ${status === 'absent' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'absent')">A</button>
+                    </div>
+                `;
+            }
+
+            let idHtml = `<strong>${item.ID}</strong>`;
+            if (tab === "Students") {
+                idHtml = `<strong style="cursor:pointer; color:var(--accent-color); text-decoration:underline;" onclick="openStudentModal('${item.ID}')">${item.ID}</strong>`;
+            }
+
+            tr.innerHTML = `
+                <td>${idHtml}</td>
+                <td>${item.Name}</td>
+                <td>${infoVal}</td>
+                <td class="center-align">${statusControlHtml}</td>
+            `;
+            attendanceTbody.appendChild(tr);
+        }
     });
 
     document.getElementById("empty-state").style.display = filteredCount === 0 ? "block" : "none";
@@ -1841,11 +2094,11 @@ function saveAndShareExcel(wb, filename) {
     }
 }
 
-function exportExcel() {
+// Generate complete export workbook with Attendance, Homework Evaluation, Teachers, Committee, Audit Logs, and Dashboard
+function generateExportWorkbook() {
     const activeDate = getActiveDateString();
     updateWorkbookData();
 
-    // Create a complete, perfectly structured export workbook with all classes and current attendance
     const wb = XLSX.utils.book_new();
     const fridays = getFridaysInSchoolYear();
     if (!fridays.includes(activeDate)) {
@@ -1866,6 +2119,7 @@ function exportExcel() {
         { name: "Nilai-8", grade: "Nilai 8", sections: false }
     ];
 
+    // 1. Attendance Sheets per class
     sheetDef.forEach(def => {
         let studentsInClass = [];
         if (def.sections) {
@@ -1879,6 +2133,7 @@ function exportExcel() {
             const fName = parts[0] || s.Name;
             const lName = parts.slice(1).join(" ");
             const row = {
+                "Student ID": s.ID,
                 "First Name": fName,
                 "Last Name": lName,
                 "Date Of Birth": s["Date of Birth"] || "",
@@ -1894,11 +2149,67 @@ function exportExcel() {
             return row;
         });
 
-        const ws = XLSX.utils.json_to_sheet(dataRows.length ? dataRows : [{ "First Name": "None", "Last Name": "", "Date Of Birth": "", "Nilai": def.grade }]);
+        const ws = XLSX.utils.json_to_sheet(dataRows.length ? dataRows : [{ "Student ID": "", "First Name": "None", "Last Name": "", "Date Of Birth": "", "Nilai": def.grade }]);
         XLSX.utils.book_append_sheet(wb, ws, def.name);
     });
 
-    // Teachers Sheet
+    // 2. Homework Evaluation Sheets per class
+    sheetDef.forEach(def => {
+        let studentsInClass = [];
+        if (def.sections) {
+            studentsInClass = appState.students.filter(s => def.secList.includes(s.Grade));
+        } else {
+            studentsInClass = appState.students.filter(s => s.Grade === def.grade);
+        }
+
+        const hwRows = studentsInClass.map(s => {
+            const parts = s.Name.split(" ");
+            const fName = parts[0] || s.Name;
+            const lName = parts.slice(1).join(" ");
+            const hw = appState.homework?.[activeDate]?.[s.ID] || { ontime: "Y", perfection: "Y", handwriting: "Y", effort: "Y" };
+            return {
+                "Student ID": s.ID,
+                "First Name": fName,
+                "Last Name": lName,
+                "Class": s.Grade,
+                "Ontime (Y/N)": hw.ontime || "Y",
+                "Perfection (Y/N)": hw.perfection || "Y",
+                "Handwriting (Y/N)": hw.handwriting || "Y",
+                "Effort (Y/N)": hw.effort || "Y",
+                "Date": activeDate
+            };
+        });
+
+        const wsHw = XLSX.utils.json_to_sheet(hwRows.length ? hwRows : [{ "Student ID": "", "First Name": "None", "Last Name": "", "Class": def.grade, "Ontime (Y/N)": "", "Perfection (Y/N)": "", "Handwriting (Y/N)": "", "Effort (Y/N)": "", "Date": activeDate }]);
+        XLSX.utils.book_append_sheet(wb, wsHw, `HW_${def.name}`);
+    });
+
+    // 3. Consolidated Homework Summary Sheet
+    const hwSummaryRows = GRADES.map(g => {
+        const classKids = appState.students.filter(s => s.Grade === g);
+        let ontimeCnt = 0, perfCnt = 0, handCnt = 0, effCnt = 0;
+        classKids.forEach(s => {
+            const hw = appState.homework?.[activeDate]?.[s.ID] || { ontime: "Y", perfection: "Y", handwriting: "Y", effort: "Y" };
+            if (hw.ontime === "Y") ontimeCnt++;
+            if (hw.perfection === "Y") perfCnt++;
+            if (hw.handwriting === "Y") handCnt++;
+            if (hw.effort === "Y") effCnt++;
+        });
+        const total = classKids.length;
+        return {
+            "Grade / Class": g,
+            "Total Students": total,
+            "Ontime": `${ontimeCnt}/${total} (${total > 0 ? Math.round((ontimeCnt/total)*100) : 0}%)`,
+            "Perfection": `${perfCnt}/${total} (${total > 0 ? Math.round((perfCnt/total)*100) : 0}%)`,
+            "Handwriting": `${handCnt}/${total} (${total > 0 ? Math.round((handCnt/total)*100) : 0}%)`,
+            "Effort": `${effCnt}/${total} (${total > 0 ? Math.round((effCnt/total)*100) : 0}%)`,
+            "Evaluation Date": activeDate
+        };
+    });
+    const wsHwSummary = XLSX.utils.json_to_sheet(hwSummaryRows);
+    XLSX.utils.book_append_sheet(wb, wsHwSummary, "Homework_Summary");
+
+    // 4. Teachers Sheet
     const teachersData = appState.teachers.map(t => {
         const parts = t.Name.split(" ");
         const fName = parts[0] || t.Name;
@@ -1920,7 +2231,7 @@ function exportExcel() {
     const wsTeachers = XLSX.utils.json_to_sheet(teachersData);
     XLSX.utils.book_append_sheet(wb, wsTeachers, "Teacher");
 
-    // Committee Sheet
+    // 5. Committee Sheet
     const committeeData = COMMITTEE_ROSTER.map(c => ({
         "ID": c.ID,
         "Name": c.Name,
@@ -1929,7 +2240,7 @@ function exportExcel() {
     const wsCommittee = XLSX.utils.json_to_sheet(committeeData);
     XLSX.utils.book_append_sheet(wb, wsCommittee, "Committee");
 
-    // Audit Logs Sheet
+    // 6. Audit Logs Sheet
     const logsData = (appState.logs || []).map((logLine, index) => ({
         "Index": index + 1,
         "Activity Details": logLine
@@ -1937,7 +2248,7 @@ function exportExcel() {
     const wsLogs = XLSX.utils.json_to_sheet(logsData.length ? logsData : [{ "Index": 1, "Activity Details": "No activity logged" }]);
     XLSX.utils.book_append_sheet(wb, wsLogs, "Audit Logs");
 
-    // Dashboard Summary Sheet
+    // 7. Dashboard Summary Sheet
     const summaryData = GRADES.map(g => {
         const classKids = appState.students.filter(s => s.Grade === g);
         let p = 0, a = 0, u = 0;
@@ -1961,7 +2272,110 @@ function exportExcel() {
     const wsSummary = XLSX.utils.json_to_sheet(summaryData);
     XLSX.utils.book_append_sheet(wb, wsSummary, "Summary_Dashboard");
 
+    return wb;
+}
+
+function exportExcel() {
+    const activeDate = getActiveDateString();
+    const wb = generateExportWorkbook();
     saveAndShareExcel(wb, `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`);
+}
+
+// iPhone Guide Modal Handlers
+function openIphoneGuideModal() {
+    const modal = document.getElementById("iphone-modal-overlay");
+    if (modal) {
+        modal.style.display = "flex";
+        requestAnimationFrame(() => modal.classList.add("modal-visible"));
+    }
+}
+
+function closeIphoneGuideModal(event) {
+    if (event && event.target !== document.getElementById("iphone-modal-overlay") && !event.target.classList.contains("modal-close-btn") && event.target.tagName !== "BUTTON") return;
+    const modal = document.getElementById("iphone-modal-overlay");
+    if (modal) {
+        modal.classList.remove("modal-visible");
+        setTimeout(() => { modal.style.display = "none"; }, 300);
+    }
+}
+
+function copyWebPortalLink() {
+    const input = document.getElementById("web-portal-url");
+    const successMsg = document.getElementById("copy-success-msg");
+    const url = input ? input.value : window.location.href;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+            if (successMsg) {
+                successMsg.style.display = "block";
+                setTimeout(() => { successMsg.style.display = "none"; }, 3500);
+            }
+        }).catch(() => fallbackCopy(input, successMsg));
+    } else {
+        fallbackCopy(input, successMsg);
+    }
+}
+
+function fallbackCopy(input, successMsg) {
+    if (input) {
+        input.select();
+        document.execCommand('copy');
+        if (successMsg) {
+            successMsg.style.display = "block";
+            setTimeout(() => { successMsg.style.display = "none"; }, 3500);
+        }
+    }
+}
+
+// Google Drive Modal & Upload Handlers
+function openGdriveModal() {
+    const modal = document.getElementById("gdrive-modal-overlay");
+    if (modal) {
+        modal.style.display = "flex";
+        requestAnimationFrame(() => modal.classList.add("modal-visible"));
+    }
+}
+
+function closeGdriveModal(event) {
+    if (event && event.target !== document.getElementById("gdrive-modal-overlay") && !event.target.classList.contains("modal-close-btn") && event.target.tagName !== "BUTTON") return;
+    const modal = document.getElementById("gdrive-modal-overlay");
+    if (modal) {
+        modal.classList.remove("modal-visible");
+        setTimeout(() => { modal.style.display = "none"; }, 300);
+    }
+}
+
+function performDirectShareOrDownload() {
+    const activeDate = getActiveDateString();
+    const wb = generateExportWorkbook();
+    const filename = `TBTA-2026-2027- RHS-Student_Attendance_${activeDate}.xlsx`;
+
+    // Try Web Share API (which lets users choose Google Drive directly on iPhone & Android)
+    if (navigator.share && navigator.canShare) {
+        try {
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const file = new File([wbout], filename, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            if (navigator.canShare({ files: [file] })) {
+                navigator.share({
+                    files: [file],
+                    title: 'TBTA Attendance & Homework Report',
+                    text: `TBTA Attendance and Homework Excel sheet for ${activeDate}`
+                }).then(() => {
+                    logActivity(`Exported and shared Excel file for ${activeDate}`);
+                    closeGdriveModal();
+                }).catch(err => {
+                    if (err.name !== 'AbortError') exportExcel();
+                });
+                return;
+            }
+        } catch (e) {
+            console.warn("Web Share API error, fallback to standard export:", e);
+        }
+    }
+
+    // Native Capacitor share or direct download
+    saveAndShareExcel(wb, filename);
+    closeGdriveModal();
 }
 
 // Submit attendance
@@ -2014,7 +2428,7 @@ function submitAttendance() {
     saveStateToLocalStorage();
 
     // Prepare Email parameters
-    let emailBody = `TBTA Attendance Report - Friday ${activeDate}\n`;
+    let emailBody = `TBTA Attendance & Homework Report - Friday ${activeDate}\n`;
     emailBody += `===========================================\n`;
     emailBody += `Submitted by: ${signingUser.name} (${signingUser.role})\n`;
     emailBody += `Status: Verified & Attested by VP & Principal\n`;
@@ -2045,7 +2459,7 @@ function submitAttendance() {
     emailBody += `===========================================\n`;
     emailBody += `Generated by TBTA Attendance Portal.\n`;
 
-    const subject = encodeURIComponent(`TBTA Attendance & Auditing Report - Friday ${activeDate}`);
+    const subject = encodeURIComponent(`TBTA Attendance & Homework Report - Friday ${activeDate}`);
     const body = encodeURIComponent(emailBody);
 
     const mailtoUrl = `mailto:${TARGET_EMAIL}?subject=${subject}&body=${body}`;
@@ -2058,25 +2472,31 @@ function submitAttendance() {
 
 // LocalStorage helpers
 function saveStateToLocalStorage() {
-    localStorage.setItem("attendance_tracker_state_v7", JSON.stringify({
+    localStorage.setItem("attendance_tracker_state_v8", JSON.stringify({
         teachers: appState.teachers,
         students: appState.students,
         attendance: appState.attendance,
+        homework: appState.homework,
+        currentMode: appState.currentMode,
         lockedDates: appState.lockedDates,
         attestations: appState.attestations,
         currentUserRole: appState.currentUserRole,
-        logs: appState.logs
-    , committee: COMMITTEE_ROSTER, leadership: LEADERSHIP_ROSTER}));
+        logs: appState.logs,
+        committee: COMMITTEE_ROSTER,
+        leadership: LEADERSHIP_ROSTER
+    }));
 }
 
 function loadStateFromLocalStorage() {
-    const saved = localStorage.getItem("attendance_tracker_state_v7");
+    const saved = localStorage.getItem("attendance_tracker_state_v8") || localStorage.getItem("attendance_tracker_state_v7");
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
             if (parsed.teachers) appState.teachers = parsed.teachers;
             if (parsed.students) appState.students = parsed.students;
             if (parsed.attendance) appState.attendance = parsed.attendance;
+            if (parsed.homework) appState.homework = parsed.homework;
+            if (parsed.currentMode) appState.currentMode = parsed.currentMode;
             if (parsed.lockedDates) appState.lockedDates = parsed.lockedDates;
             if (parsed.attestations) appState.attestations = parsed.attestations;
             if (parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;

@@ -84,6 +84,85 @@
         </div>
     </div>
 
+    <!-- iPhone & Mobile Access Guide Modal -->
+    <div id="iphone-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeIphoneGuideModal(event)">
+        <div class="student-modal-card" style="max-width: 540px; text-align: left;" onclick="event.stopPropagation()">
+            <button class="modal-close-btn" onclick="closeIphoneGuideModal(event)">✕</button>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span style="font-size: 2.2rem;">📱</span>
+                <div>
+                    <h2 style="margin: 0; font-size: 1.3rem;">iPhone &amp; Universal Web Access</h2>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Access TBTA Portal from any iPhone, Android, or PC</p>
+                </div>
+            </div>
+
+            <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 6px;">🔗 DIRECT WEB LINK FOR TEACHERS &amp; ADMIN:</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="web-portal-url" readonly value="https://manivask.github.io/attendance-tracker/" style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--accent-color); font-weight: 600; font-size: 0.9rem;">
+                    <button class="btn btn-primary" onclick="copyWebPortalLink()" id="btn-copy-link" style="padding: 8px 14px; font-size: 0.85rem;">📋 Copy</button>
+                </div>
+                <div id="copy-success-msg" style="display:none; color: var(--success-color); font-size: 0.8rem; margin-top: 6px; font-weight: 600;">✅ Link copied to clipboard!</div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">🍎 How to install on iPhone (Safari):</h4>
+                <ol style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+                    <li>Open the link above in <strong>Safari</strong> on your iPhone.</li>
+                    <li>Tap the <strong>Share</strong> button (box with upward arrow at bottom).</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong> (➕).</li>
+                    <li>Tap <strong>"Add"</strong> in top right. The TBTA Portal will now work like a native iPhone app!</li>
+                </ol>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">🤖 How to install on Android (Chrome):</h4>
+                <ol style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+                    <li>Open the link in <strong>Chrome</strong> or install the provided Android APK.</li>
+                    <li>Tap the 3 dots menu (⋮) &gt; <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+                </ol>
+            </div>
+
+            <div style="text-align: right;">
+                <button class="btn btn-secondary" onclick="closeIphoneGuideModal(event)">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Drive Upload Modal -->
+    <div id="gdrive-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeGdriveModal(event)">
+        <div class="student-modal-card" style="max-width: 520px; text-align: left;" onclick="event.stopPropagation()">
+            <button class="modal-close-btn" onclick="closeGdriveModal(event)">✕</button>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span style="font-size: 2.2rem;">📤</span>
+                <div>
+                    <h2 style="margin: 0; font-size: 1.3rem;">Upload to Google Drive</h2>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Save today's Excel report directly to Google Drive</p>
+                </div>
+            </div>
+
+            <p style="font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 16px;">
+                You can save or upload the latest attendance &amp; homework Excel spreadsheet directly to your personal or school Google Drive account.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px;">
+                <button class="btn btn-primary" onclick="performDirectShareOrDownload()" style="justify-content: center; padding: 12px; font-size: 0.95rem; background: var(--success-color); border-color: var(--success-color);">
+                    📲 Share / Upload File (Native Sheet)
+                </button>
+                <button class="btn btn-secondary" onclick="exportExcel()" style="justify-content: center; padding: 10px; font-size: 0.9rem;">
+                    💾 Download Excel File (.xlsx)
+                </button>
+                <a href="https://drive.google.com/drive/u/0/my-drive" target="_blank" class="btn btn-secondary" style="justify-content: center; padding: 10px; font-size: 0.9rem; text-decoration: none;">
+                    🌐 Open Google Drive in New Tab ↗
+                </a>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 10px;">
+                💡 <strong>Tip:</strong> On mobile devices (iPhone &amp; Android), tapping "Share File" will open your phone's share menu with Google Drive, Gmail, WhatsApp, and Files for 1-tap direct upload.
+            </div>
+        </div>
+    </div>
+
     <div class="app-container" id="main-app-container" style="filter: blur(10px); pointer-events: none;">
         <!-- Header -->
         <header class="app-header">
@@ -96,6 +175,7 @@
             </div>
             
             <div class="header-right">
+                <button class="btn btn-secondary" onclick="openIphoneGuideModal()" title="iPhone &amp; Web Link" style="font-size: 0.85rem; padding: 8px 12px; border-radius: 8px; font-weight: 600;">📱 iPhone Link</button>
                 <div class="time-window-status" id="time-window-status">
                     <div class="status-indicator"></div>
                     <div class="status-details">
@@ -192,6 +272,15 @@
                     </select>
                 </div>
 
+                <!-- Mode Picker: Attendance vs Homework -->
+                <div class="mode-picker" id="main-mode-picker" style="margin-left: 12px; display: flex; align-items: center;">
+                    <label for="main-mode-select" style="font-weight: 600; font-size: 0.95rem; margin-right: 6px;">📋 Activity:</label>
+                    <select id="main-mode-select" onchange="handleModeChange()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--accent-color); background: var(--bg-secondary); color: var(--text-primary); font-weight: 700; cursor: pointer;">
+                        <option value="Attendance" selected>📝 Attendance (P / A)</option>
+                        <option value="Homework">📚 Homework (4 Categories)</option>
+                    </select>
+                </div>
+
                 <div class="tabs">
                     <button class="tab-btn active" id="tab-students" onclick="switchTab('Students')">
                         🎓 Students <span class="badge" id="badge-students">90</span>
@@ -241,25 +330,43 @@
                     <span class="search-icon">🔍</span>
                     <input type="text" id="search-input" placeholder="Search by name or ID..." oninput="filterList()">
                 </div>
+                <!-- Status filters for Attendance mode -->
                 <div class="filters" id="status-filters-group">
                     <button class="filter-btn active" onclick="setFilter('all')">All</button>
                     <button class="filter-btn text-success" onclick="setFilter('present')">Present</button>
                     <button class="filter-btn text-danger" onclick="setFilter('absent')">Absent</button>
                     <button class="filter-btn text-warning" onclick="setFilter('unmarked')">Unmarked</button>
                 </div>
+                <!-- Quick actions for Homework mode -->
+                <div class="homework-actions" id="homework-actions-group" style="display:none; gap: 8px; align-items: center;">
+                    <button class="btn btn-primary" onclick="markAllHomeworkForClass('Y')" style="font-size: 0.8rem; padding: 6px 12px; background: var(--success-color); border-color: var(--success-color);">
+                        ⚡ Mark All Class Homework as 'Y'
+                    </button>
+                    <button class="btn btn-secondary" onclick="markAllHomeworkForClass('N')" style="font-size: 0.8rem; padding: 6px 12px;">
+                        Reset / Mark 'N'
+                    </button>
+                </div>
             </section>
 
-            <!-- Attendance List Card -->
+            <!-- Attendance / Homework List Card -->
             <section class="attendance-card card" id="attendance-section">
                 <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
                     <div>
                         <h2 id="current-sheet-title">Students List</h2>
                         <div id="assigned-teachers-info" style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600;"></div>
                     </div>
+                    <!-- Attendance Stats -->
                     <div class="selection-stats" id="selection-stats-container">
                         <span class="stat-tag tag-success">Present: <strong id="stat-present">0</strong></span>
                         <span class="stat-tag tag-danger">Absent: <strong id="stat-absent">0</strong></span>
                         <span class="stat-tag tag-warning">Unmarked: <strong id="stat-unmarked">90</strong></span>
+                    </div>
+                    <!-- Homework Stats -->
+                    <div class="selection-stats" id="homework-stats-container" style="display:none; gap: 6px;">
+                        <span class="stat-tag tag-success" title="Ontime Rate">⏱️ Ontime: <strong id="stat-hw-ontime">0/0</strong></span>
+                        <span class="stat-tag tag-success" title="Perfection Rate">⭐ Perfection: <strong id="stat-hw-perf">0/0</strong></span>
+                        <span class="stat-tag tag-success" title="Handwriting Rate">✍️ Handwriting: <strong id="stat-hw-hand">0/0</strong></span>
+                        <span class="stat-tag tag-success" title="Effort Rate">💪 Effort: <strong id="stat-hw-eff">0/0</strong></span>
                     </div>
                 </div>
 
@@ -267,7 +374,7 @@
                     <table class="attendance-table" id="attendance-table">
                         <thead>
                             <tr id="table-headers-row">
-                                <th>ID</th>
+                                <th style="width: 80px;">ID</th>
                                 <th>Name</th>
                                 <th id="th-info">Grade</th>
                                 <th class="center-align" id="th-status-col">Status</th>
@@ -408,6 +515,9 @@
             <div class="footer-actions">
                 <button class="btn btn-secondary" onclick="exportExcel()">
                     💾 Export Excel Sheet
+                </button>
+                <button class="btn btn-secondary btn-gdrive" onclick="openGdriveModal()" style="background: rgba(16, 185, 129, 0.12); color: var(--success-color); border: 1px solid rgba(16, 185, 129, 0.35); font-weight: 700;">
+                    📤 Upload to Google Drive / Share
                 </button>
                 <button class="btn btn-primary" id="btn-submit-attendance" onclick="submitAttendance()" disabled>
                     ✉️ Submit &amp; Send Email
