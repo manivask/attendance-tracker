@@ -1861,6 +1861,8 @@ function renderList() {
     const homeworkStatsGroup = document.getElementById("homework-stats-container");
     const tableHeadersRow = document.getElementById("table-headers-row");
 
+    const isTeacher = appState.currentUserRole && appState.currentUserRole.role === "Teacher";
+
     if (isHomeworkMode) {
         currentSheetTitle.textContent = "Students Homework Evaluation";
         if (statusFiltersGroup) statusFiltersGroup.style.display = "none";
@@ -1871,7 +1873,7 @@ function renderList() {
         tableHeadersRow.innerHTML = `
             <th style="width: 70px;">ID</th>
             <th>Name</th>
-            <th id="th-info" style="min-width: 90px;">Grade</th>
+            ${!isTeacher ? `<th id="th-info" style="min-width: 90px;">Grade</th>` : ``}
             <th class="th-hw" title="Ontime submission">⏱️ Ontime</th>
             <th class="th-hw" title="Accurate and complete homework">⭐ Perfection</th>
             <th class="th-hw" title="Clean and neat handwriting">✍️ Handwriting</th>
@@ -1909,7 +1911,7 @@ function renderList() {
         tableHeadersRow.innerHTML = `
             <th style="width: 80px;">ID</th>
             <th>Name</th>
-            <th id="th-info">${tab === "Students" ? "Grade" : "Class Assignment"}</th>
+            ${!isTeacher ? `<th id="th-info">${tab === "Students" ? "Grade" : "Class Assignment"}</th>` : ``}
             <th class="center-align" id="th-status-col">Status</th>
         `;
 
@@ -1961,7 +1963,7 @@ function renderList() {
             tr.innerHTML = `
                 <td>${idHtml}</td>
                 <td><strong>${item.Name}</strong></td>
-                <td>${item.Grade}</td>
+                ${!isTeacher ? `<td>${item.Grade}</td>` : ``}
                 <td class="hw-cell">${renderHwToggle('ontime', hwData.ontime)}</td>
                 <td class="hw-cell">${renderHwToggle('perfection', hwData.perfection)}</td>
                 <td class="hw-cell">${renderHwToggle('handwriting', hwData.handwriting)}</td>
@@ -2003,7 +2005,7 @@ function renderList() {
             tr.innerHTML = `
                 <td>${idHtml}</td>
                 <td>${item.Name}</td>
-                <td>${infoVal}</td>
+                ${!isTeacher ? `<td>${infoVal}</td>` : ``}
                 <td class="center-align">${statusControlHtml}</td>
             `;
             attendanceTbody.appendChild(tr);

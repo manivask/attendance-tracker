@@ -1,21 +1,58 @@
 # Testing & Deployment Instructions (TBTA Attendance Portal)
 
-This guide explains how to test the TBTA Attendance Portal on Windows and how to use it on your mobile devices/tablets.
+This guide explains how to test the TBTA Attendance Portal on Windows, how to use it on your mobile devices/tablets, how Attendance and Homework evaluation sheets are maintained in GitHub, and how to build and install the Android APK package.
 
 ---
 
 ## 🔑 Login Access Gate Credentials
 
-The app implements a simplified role-based security gate. Select **Riverview** school location and your role:
+The app implements a role-based security gate. Select **Riverview** school location and your role:
 
 | Personnel Role | Role Selection | Password | Access Level & Features |
 | :--- | :--- | :--- | :--- |
-| **Teacher** | Teacher | `teacher` | - Restricted to assigned class view with grade picker (Ilanthalir through Nilai 8)<br>- Student roster & assigned teachers display<br>- Interactive P/A attendance toggling<br>- Student details profile modal popup<br>- One-click class attendance submission |
-| **Administrator** | Administrator / Admin | `admin` | - Full school-wide access across all classes<br>- Students, Teachers, and Committee tabs<br>- Developer date simulation panel & admin date picker<br>- Principal & Vice Principal attestation controls<br>- Real-time activity audit logs<br>- Excel spreadsheet export and email submission |
+| **Teacher** | Teacher | `teacher` | - Restricted to selected class view (Ilanthalir through Nilai 8)<br>- Grade column omitted in teacher table to maximize Name, ID & action button spacing<br>- Both **Attendance (P/A)** and **Homework (4 Categories)** evaluation modes<br>- Student details profile modal popup<br>- One-click class attendance submission |
+| **Administrator** | Administrator / Admin | `admin` | - Full school-wide access across all classes<br>- Students, Teachers, Committee, Admin Roster, Dashboard & System Tools tabs<br>- Developer date simulation panel & admin date picker<br>- Principal & Vice Principal attestation controls<br>- Real-time activity audit logs<br>- Excel spreadsheet export and Google Drive sharing |
 
 ---
 
-## 💻 1. How to Test on Windows
+## 📱 1. Android App Package (APK)
+
+The Android app package is built with Capacitor and Gradle:
+- **Location in repo**: `apk/TBTA-Attendance-Tracker.apk` and `apk/app-debug.apk`
+- **Package name**: `com.tbta.attendance`
+- **File size**: ~4.52 MB
+
+### How to Install on Android Device / Tablet:
+1. Transfer `apk/TBTA-Attendance-Tracker.apk` to your Android device (via USB cable, Google Drive, email, or WhatsApp).
+2. Open the file on your device and tap **Install** (enable "Install unknown apps" if prompted).
+3. Open **TBTA Attendance** from your app drawer!
+
+### How to Rebuild APK:
+```powershell
+npm run build:apk
+```
+
+---
+
+## 📊 2. Attendance + Homework Excel Sheets in GitHub
+
+All class Attendance and Homework evaluation sheets are maintained directly in GitHub for offline viewing, archiving, and editing:
+
+| File Name | Purpose & Contents |
+| :--- | :--- |
+| **`TBTA-2026-2027- RHS-Student_Attendance.xlsx`** | Complete school year attendance and homework workbook with all 10 classes (`illanthalir` to `Nilai-8`), `HW_illanthalir` to `HW_Nilai-8`, `Homework_Summary`, `Teacher`, `Committee`, and `Summary_Dashboard`. |
+| **`TBTA-2026-2027-RHS-Attendance-And-Homework-Template.xlsx`** | Master template containing formatted columns for ID, Names, DOB, Class, Friday dates, and Homework evaluation matrices. |
+| **`attendance_template.xlsx`** | Blank downloadable template for administrators. |
+| **`generate_template.py`** | Automated Python script to regenerate/refresh all 10 class sheets with custom dates and roster mappings. |
+
+### To regenerate sheets at any time:
+```powershell
+npm run generate:sheets
+```
+
+---
+
+## 💻 3. How to Test on Windows Browser
 
 ### Option A: Local Python Web Server (Recommended)
 1. Open PowerShell and navigate to the directory:
@@ -26,49 +63,31 @@ The app implements a simplified role-based security gate. Select **Riverview** s
    ```powershell
    python -m http.server 8000
    ```
-3. Open your browser and go to:
-   ```
-   http://localhost:8000/
-   ```
+3. Open your browser and go to: `http://localhost:8000/`
 
 ### Option B: Open `index.html` Directly
-You can also double-click the [index.html](file:///c:/Users/maniv/all_ide_code_ws/apps/attendance-tracker/index.html) file to open it directly in Chrome, Edge, or Firefox.
+Double-click [index.html](file:///c:/Users/maniv/all_ide_code_ws/apps/attendance-tracker/index.html) to open in Chrome, Edge, or Firefox.
 
 ---
 
-## 📱 2. How to Transfer and Run on an Android Tablet / Mobile
-
-### Option A: Transfer Files & Run via Android Web Browser (Offline-capable)
-1. Copy the entire `attendance-tracker` folder to your tablet's internal storage (e.g., `AttendanceApp`).
-2. Open a local file browser app (like *CX File Explorer* or *Files by Google*).
-3. Tap on `index.html` and select Chrome or your preferred browser.
-
-### Option B: Local Web Server App on Android (Best Experience)
-1. Download **"Simple HTTP Server"** from Google Play Store.
-2. Select the `attendance-tracker` directory in the app and press **Start**.
-3. Open the displayed local IP address (e.g., `http://127.0.0.1:8080`) in Chrome on your tablet.
-
----
-
-## 🧪 3. Complete Validation Scenarios
+## 🧪 4. Validation Scenarios
 
 ### Scenario 1: Teacher Experience
 1. On the gate screen, select **Riverview** -> select **Teacher**.
 2. Type password `teacher`.
 3. Verify that the **Class / Grade** selector appears (defaulting to *Nilai 1*).
-4. Verify the student list and assigned teachers load cleanly.
-5. Click any **Student ID** (e.g. `S001` or `S033`) to open the **Student Profile Modal** displaying avatar, Tamil name, parent contacts, DOB, and room number.
-6. Toggle attendance (click **P** or **A**), and confirm Present/Absent counters update immediately.
+4. **Verify Grade Column Optimization**: Observe that the redundant Grade column is removed from the table, giving maximum clear width to Student ID, Student Name, and Attendance/Homework buttons.
+5. Switch **Activity** dropdown between **📝 Attendance (P / A)** and **📚 Homework (4 Categories)**:
+   - In Attendance mode: verify quick P / A buttons and counters.
+   - In Homework mode: verify Ontime, Perfection, Handwriting, and Effort toggles with batch mark buttons.
+6. Click any **Student ID** (e.g. `S001`) to open the **Student Profile Modal**.
 7. Click **✉️ Submit Class Attendance** and verify submission.
-8. Click **🔒 Logout** to return to the gate screen.
 
 ### Scenario 2: Administrator Experience
 1. On the gate screen, select **Riverview** -> select **Administrator / Admin**.
 2. Type password `admin`.
-3. Verify all three tabs are visible: **Students**, **Teachers**, and **Committee**.
-4. Test search bar filtering (e.g. search by student name) and status filters (**All**, **Present**, **Absent**, **Unmarked**).
-5. Check the **Official Verification & Attestation** checkboxes (Vice Principal and Principal sign-offs).
-6. Toggle Theme button (☀️ / 🌙) to switch between Light and Dark mode.
-7. Expand the **📋 Real-Time Activity Audit Logs** at the bottom to verify complete history of operations.
-8. Click **💾 Export Excel Sheet** to verify SheetJS export functionality.
-
+3. Verify tabs: **Students**, **Teachers**, **Committee**, **Admin Roster**, **Dashboard**, **System Tools**.
+4. Observe that for Administrator, the **Grade / Class Assignment** column remains visible when viewing the whole school roster.
+5. Verify **Admin Roster** inline editing and saving.
+6. Check the **Official Verification & Attestation** checkboxes (VP and Principal sign-offs).
+7. Click **💾 Export Excel Sheet** to verify complete export with all Attendance and Homework sheets.
