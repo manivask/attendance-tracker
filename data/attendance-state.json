@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "updatedAt": "2026-10-02T00:00:00.000Z",
+  "updatedBy": "System",
+  "attendance": {
+    "Teachers": {},
+    "Students": {}
+  },
+  "homework": {},
+  "tests": {},
+  "lockedDates": [],
+  "attestations": {},
+  "logs": []
+}

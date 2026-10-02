@@ -1,0 +1,43 @@
+name: Auto-Sync Attendance Spreadsheet
+
+on:
+  push:
+    paths:
+      - 'data/attendance-state.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-sheet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Synchronize JSON state into Excel
+        run: |
+          python scripts/update_excel_from_json.py
+
+      - name: Commit and push Excel updates
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add "TBTA-2026-2027- RHS-Student_Attendance.xlsx"
+          if git status --porcelain | grep -E "TBTA.*\.xlsx"; then
+            git commit -m "Auto-update Excel attendance records [skip ci]"
+            git push
+          else
+            echo "No Excel changes to commit"
+          fi
