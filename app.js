@@ -66,7 +66,7 @@ let appState = {
         Students: {}
     },
     homework: {}, // { [dateStr]: { [studentId]: { ontime: 'Y', perfection: 'Y', handwriting: 'Y', effort: 'Y' } } }
-    tests: {}, // { [weekDate]: { [studentId]: number (0-100) } }
+    tests: {}, // { [weekDate]: { [studentId]: { reading, writing, oral } } }
 
     lockedDates: [],
     attestations: {},
@@ -453,7 +453,13 @@ function handleModeChange() {
     renderList();
 }
 
-function setTestMark(id, value) {
+function normalizeTestMarks(value) {
+    // Preserve test marks recorded by the earlier single-mark Test view as Reading.
+    if (Number.isFinite(value)) return { reading: value };
+    return value && typeof value === "object" ? value : {};
+}
+
+function setTestMark(id, category, value) {
     const activeDate = getActiveDateString();
     if (appState.lockedDates.includes(activeDate) && !canBypassLock()) {
         alert("This record is locked and cannot be edited.");
@@ -468,10 +474,13 @@ function setTestMark(id, value) {
     }
     if (!appState.tests) appState.tests = {};
     if (!appState.tests[activeDate]) appState.tests[activeDate] = {};
-    if (mark === null) delete appState.tests[activeDate][id];
-    else appState.tests[activeDate][id] = Math.round(mark);
+    const marks = normalizeTestMarks(appState.tests[activeDate][id]);
+    if (mark === null) delete marks[category];
+    else marks[category] = mark;
+    if (Object.keys(marks).length) appState.tests[activeDate][id] = marks;
+    else delete appState.tests[activeDate][id];
     const student = appState.students.find(s => s.ID === id);
-    logActivity(`${appState.currentUserRole?.name || "User"} ${mark === null ? "cleared" : "recorded"} Test mark ${mark ?? ""} for ${student?.Name || id} on ${activeDate}`);
+    logActivity(`${appState.currentUserRole?.name || "User"} ${mark === null ? "cleared" : "recorded"} ${category} Test mark ${mark ?? ""} for ${student?.Name || id} on ${activeDate}`);
     saveStateToLocalStorage();
     renderList();
 }
@@ -1854,13 +1863,15 @@ function renderList() {
             <th style="width: 70px;">ID</th>
             <th>Name</th>
             ${!isTeacher ? `<th id="th-info" style="min-width: 90px;">Grade</th>` : ``}
-            <th class="center-align">🧪 Test Mark <small>/ 100</small></th>
+            <th class="center-align">📖 Reading <small>/ 100</small></th>
+            <th class="center-align">✍️ Writing <small>/ 100</small></th>
+            <th class="center-align">🗣️ Oral <small>/ 100</small></th>
         `;
-        const marks = items.map(s => appState.tests?.[activeDate]?.[s.ID]).filter(Number.isFinite);
-        const entered = document.getElementById("stat-test-entered");
-        const average = document.getElementById("stat-test-average");
-        if (entered) entered.textContent = `${marks.length}/${items.length}`;
-        if (average) average.textContent = marks.length ? `${(marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(1)} / 100` : "—";
+        ["reading", "writing", "oral"].forEach(category => {
+            const marks = items.map(s => normalizeTestMarks(appState.tests?.[activeDate]?.[s.ID])[category]).filter(Number.isFinite);
+            const stat = document.getElementById(`stat-test-${category}`);
+            if (stat) stat.textContent = marks.length ? `${(marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(1)} / 100` : "—";
+        });
     } else {
         currentSheetTitle.textContent = tab === "Students" ? "Students List" : "Teachers List";
         if (statusFiltersGroup) statusFiltersGroup.style.display = "flex";
@@ -1934,17 +1945,19 @@ function renderList() {
 
         } else if (isTestMode) {
             filteredCount++;
-            const mark = appState.tests?.[activeDate]?.[item.ID];
-            const input = (isLocked && !canBypassLock())
-                ? `<span class="test-mark-locked">${Number.isFinite(mark) ? mark : "—"} <small>/ 100</small></span>`
-                : `<input class="test-mark-input" type="number" min="0" max="100" step="1" inputmode="numeric" value="${Number.isFinite(mark) ? mark : ""}" placeholder="0–100" aria-label="Test mark for ${item.Name}" onchange="setTestMark('${item.ID}', this.value)">`;
+            const marks = normalizeTestMarks(appState.tests?.[activeDate]?.[item.ID]);
+            const input = category => (isLocked && !canBypassLock())
+                ? `<span class="test-mark-locked">${Number.isFinite(marks[category]) ? marks[category] : "—"} <small>/ 100</small></span>`
+                : `<input class="test-mark-input" type="number" min="0" max="100" step="1" inputmode="numeric" value="${Number.isFinite(marks[category]) ? marks[category] : ""}" placeholder="0–100" aria-label="${category} test mark for ${item.Name}" onchange="setTestMark('${item.ID}', '${category}', this.value)">`;
             const idHtml = `<strong style="cursor:pointer; color:var(--accent-color); text-decoration:underline;" onclick="openStudentModal('${item.ID}')">${item.ID}</strong>`;
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>${idHtml}</td>
                 <td><strong>${item.Name}</strong></td>
                 ${!isTeacher ? `<td>${item.Grade}</td>` : ``}
-                <td class="center-align test-mark-cell">${input}</td>
+                <td class="center-align test-mark-cell">${input('reading')}</td>
+                <td class="center-align test-mark-cell">${input('writing')}</td>
+                <td class="center-align test-mark-cell">${input('oral')}</td>
             `;
             attendanceTbody.appendChild(tr);
 
@@ -2189,14 +2202,19 @@ function generateExportWorkbook() {
     XLSX.utils.book_append_sheet(wb, wsHwSummary, "Homework_Summary");
 
     // 4. Weekly Test Marks — one row per student for the selected weekly date.
-    const testRows = appState.students.map(s => ({
-        "Student ID": s.ID,
-        "Student Name": s.Name,
-        "Class": s.Grade,
-        "Test Date": activeDate,
-        "Mark / 100": Number.isFinite(appState.tests?.[activeDate]?.[s.ID]) ? appState.tests[activeDate][s.ID] : ""
-    }));
-    const wsTests = XLSX.utils.json_to_sheet(testRows.length ? testRows : [{ "Student ID": "", "Student Name": "None", "Class": "", "Test Date": activeDate, "Mark / 100": "" }]);
+    const testRows = appState.students.map(s => {
+        const marks = normalizeTestMarks(appState.tests?.[activeDate]?.[s.ID]);
+        return {
+            "Student ID": s.ID,
+            "Student Name": s.Name,
+            "Class": s.Grade,
+            "Test Date": activeDate,
+            "Reading / 100": Number.isFinite(marks.reading) ? marks.reading : "",
+            "Writing / 100": Number.isFinite(marks.writing) ? marks.writing : "",
+            "Oral / 100": Number.isFinite(marks.oral) ? marks.oral : ""
+        };
+    });
+    const wsTests = XLSX.utils.json_to_sheet(testRows.length ? testRows : [{ "Student ID": "", "Student Name": "None", "Class": "", "Test Date": activeDate, "Reading / 100": "", "Writing / 100": "", "Oral / 100": "" }]);
     XLSX.utils.book_append_sheet(wb, wsTests, "Weekly_Test_Marks");
 
     // 5. Teachers Sheet
