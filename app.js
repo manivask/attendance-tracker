@@ -304,6 +304,9 @@ function handleDateChange() {
 }
 
 // Student Profile Modal
+let activeStudentModalId = null;
+let studentAttendanceChart = null;
+
 function openStudentModal(studentId) {
     const student = appState.students.find(s => s.ID === studentId);
     if (!student) return;
@@ -354,6 +357,11 @@ function openStudentModal(studentId) {
         </div>`
     ).join("");
 
+    activeStudentModalId = studentId;
+    switchStudentModalTab("profile");
+    renderStudentAttendance(student);
+    renderStudentMarks(student);
+
     // Show modal with animation
     modal.style.display = "flex";
     requestAnimationFrame(() => {
@@ -361,9 +369,93 @@ function openStudentModal(studentId) {
     });
 }
 
+function switchStudentModalTab(tab) {
+    ["profile", "attendance", "marks"].forEach(name => {
+        const panel = document.getElementById(`student-panel-${name}`);
+        const button = document.getElementById(`student-tab-${name}`);
+        if (panel) panel.classList.toggle("active", name === tab);
+        if (button) button.classList.toggle("active", name === tab);
+    });
+    if (tab === "attendance" && studentAttendanceChart) studentAttendanceChart.resize();
+}
+
+function renderStudentAttendance(student) {
+    let present = 0;
+    let absent = 0;
+    Object.values(appState.attendance?.Students || {}).forEach(day => {
+        const status = day?.[student.ID];
+        if (status === "present") present++;
+        if (status === "absent") absent++;
+    });
+    const summary = document.getElementById("student-attendance-summary");
+    if (summary) {
+        const total = present + absent;
+        summary.textContent = total
+            ? `${present} present · ${absent} absent · ${((present / total) * 100).toFixed(1)}% attendance`
+            : "No attendance records have been entered for this student yet.";
+    }
+    const canvas = document.getElementById("student-attendance-chart");
+    if (!canvas || typeof Chart === "undefined") return;
+    if (studentAttendanceChart) studentAttendanceChart.destroy();
+    studentAttendanceChart = new Chart(canvas, {
+        type: "pie",
+        data: {
+            labels: ["Present", "Absent"],
+            datasets: [{ data: [present, absent], backgroundColor: ["#10b981", "#ef4444"], borderColor: ["#ffffff", "#ffffff"], borderWidth: 2 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } }
+        }
+    });
+}
+
+function getStudentOverallMark(studentId) {
+    const values = [];
+    Object.values(appState.tests || {}).forEach(week => {
+        const marks = normalizeTestMarks(week?.[studentId]);
+        [marks.reading, marks.writing, marks.oral].forEach(mark => {
+            if (Number.isFinite(mark)) values.push(mark);
+        });
+    });
+    return values.length ? values.reduce((sum, mark) => sum + mark, 0) / values.length : null;
+}
+
+function renderStudentMarks(student) {
+    const score = getStudentOverallMark(student.ID);
+    const classmates = appState.students.filter(s => s.Location === student.Location && s.Grade === student.Grade);
+    const ranked = classmates
+        .map(s => ({ id: s.ID, score: getStudentOverallMark(s.ID) }))
+        .filter(item => Number.isFinite(item.score))
+        .sort((a, b) => b.score - a.score);
+    const rank = Number.isFinite(score) ? ranked.findIndex(item => item.id === student.ID) + 1 : 0;
+    const percentile = rank ? ((ranked.length - rank + 1) / ranked.length) * 100 : null;
+    const summary = document.getElementById("student-marks-summary");
+    const note = document.getElementById("student-marks-note");
+    if (!summary || !note) return;
+    if (!Number.isFinite(score)) {
+        summary.innerHTML = "";
+        note.textContent = "No Reading, Writing, or Oral marks have been recorded for this student yet.";
+        return;
+    }
+    summary.innerHTML = `
+        <div class="student-mark-card"><span>Overall score</span><strong>${score.toFixed(1)} / 100</strong></div>
+        <div class="student-mark-card"><span>Percentage</span><strong>${score.toFixed(1)}%</strong></div>
+        <div class="student-mark-card"><span>Class rank</span><strong>${rank} / ${ranked.length || classmates.length}</strong></div>
+        <div class="student-mark-card"><span>Class percentile</span><strong>Top ${percentile.toFixed(0)}%</strong></div>
+    `;
+    note.textContent = `Overall result uses every recorded Reading, Writing, and Oral mark. Rank is calculated against classmates with recorded marks (${ranked.length} of ${classmates.length}).`;
+}
+
 function closeStudentModal(event) {
     if (event && event.target !== document.getElementById("student-modal-overlay") && !event.target.classList.contains("modal-close-btn")) return;
     const modal = document.getElementById("student-modal-overlay");
+    if (studentAttendanceChart) {
+        studentAttendanceChart.destroy();
+        studentAttendanceChart = null;
+    }
+    activeStudentModalId = null;
     modal.classList.remove("modal-visible");
     setTimeout(() => { modal.style.display = "none"; }, 300);
 }

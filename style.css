@@ -1308,6 +1308,72 @@ body.dark-mode .modal-avatar-section.avatar-boy {
     margin-bottom: 12px;
     letter-spacing: 0.02em;
 }
+.student-modal-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    margin: 0 0 14px;
+    border-radius: 10px;
+    background: var(--bg-primary);
+}
+.student-modal-tab {
+    flex: 1;
+    border: 0;
+    padding: 8px 6px;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.student-modal-tab.active {
+    background: var(--accent-color);
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.28);
+}
+.student-modal-panel { display: none; }
+.student-modal-panel.active { display: block; }
+.student-chart-wrap {
+    position: relative;
+    height: 250px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-primary);
+}
+.student-modal-note {
+    margin: 12px 2px 0;
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+.student-marks-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+.student-mark-card {
+    min-height: 76px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-primary);
+}
+.student-mark-card span {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+.student-mark-card strong {
+    color: var(--accent-color);
+    font-size: 1.05rem;
+}
 .modal-details {
     display: flex;
     flex-direction: column;

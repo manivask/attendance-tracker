@@ -77,8 +77,23 @@
             <div class="modal-info-section">
                 <h2 id="modal-student-name">Student Name</h2>
                 <div class="modal-badge" id="modal-grade-badge">Nilai 1</div>
-                <div class="modal-details" id="modal-details">
-                    <!-- Populated dynamically -->
+                <div class="student-modal-tabs" role="tablist" aria-label="Student information">
+                    <button class="student-modal-tab active" id="student-tab-profile" onclick="switchStudentModalTab('profile')">Profile</button>
+                    <button class="student-modal-tab" id="student-tab-attendance" onclick="switchStudentModalTab('attendance')">Attendance</button>
+                    <button class="student-modal-tab" id="student-tab-marks" onclick="switchStudentModalTab('marks')">Marks</button>
+                </div>
+                <div id="student-panel-profile" class="student-modal-panel active">
+                    <div class="modal-details" id="modal-details">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <div id="student-panel-attendance" class="student-modal-panel">
+                    <div class="student-chart-wrap"><canvas id="student-attendance-chart"></canvas></div>
+                    <p class="student-modal-note" id="student-attendance-summary">No attendance records yet.</p>
+                </div>
+                <div id="student-panel-marks" class="student-modal-panel">
+                    <div class="student-marks-grid" id="student-marks-summary"></div>
+                    <p class="student-modal-note" id="student-marks-note">No test marks recorded yet.</p>
                 </div>
             </div>
         </div>
