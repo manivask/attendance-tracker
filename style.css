@@ -1446,6 +1446,37 @@ input[value="Developer"] + span {
     color: var(--text-muted);
 }
 
+.test-mark-cell {
+    min-width: 145px;
+}
+
+.test-mark-input {
+    width: 100px;
+    padding: 8px 10px;
+    border: 1px solid var(--accent-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 700;
+    text-align: center;
+}
+
+.test-mark-input:focus {
+    outline: 2px solid var(--accent-light);
+    outline-offset: 1px;
+}
+
+.test-mark-locked {
+    display: inline-block;
+    min-width: 92px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
 .th-hw {
     text-align: center;
     min-width: 90px;

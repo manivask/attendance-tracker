@@ -1,0 +1,36 @@
+name: Deploy Teacher Portal
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare portal files
+        run: |
+          mkdir site
+          cp index.html app.js style.css chart.js sync.js sync-config.js manifest.json site/
+          cp "TBTA-2026-2027- RHS-Student_Attendance.xlsx" site/
+          cp "TBTA-2026- 27- Riverview High School-Students  list.xlsx" site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

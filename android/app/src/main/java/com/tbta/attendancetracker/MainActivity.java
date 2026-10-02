@@ -1,4 +1,4 @@
-package com.tbta.attendance;
+package com.tbta.attendancetracker;
 
 import com.getcapacitor.BridgeActivity;
 

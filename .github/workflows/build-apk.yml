@@ -38,7 +38,7 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          cp index.html app.js style.css chart.js manifest.json *.xlsx www/ || true
+          cp index.html app.js style.css chart.js sync.js sync-config.js manifest.json *.xlsx www/ || true
           cp -r assets www/ || true
 
       - name: Sync Capacitor
@@ -75,14 +75,16 @@ jobs:
           }
           " >> android/app/build.gradle
 
-      - name: Build APK
+      - name: Build APK and AAB
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug bundleRelease --stacktrace
 
-      - name: Upload APK Artifact
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: attendance-tracker-apk
-          path: android/app/build/outputs/**/*.apk
+          name: attendance-tracker-builds
+          path: |
+            android/app/build/outputs/**/*.apk
+            android/app/build/outputs/**/*.aab

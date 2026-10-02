@@ -1,5 +1,5 @@
 {
-  "appId": "com.tbta.attendance",
+  "appId": "com.tbta.attendancetracker",
   "appName": "Attendance Tracker",
   "webDir": "www",
   "bundledWebRuntime": false

@@ -204,43 +204,6 @@
 
         <!-- Main Content Area -->
         <main class="app-main">
-            <!-- Testing / Simulation Panel (Developer Mode only) -->
-            <section class="simulation-panel" id="simulation-panel">
-                <div class="sim-header" onclick="toggleSimPanel()">
-                    <h3>🛠️ Testing &amp; Date Simulation Dashboard</h3>
-                    <span class="toggle-icon" id="sim-toggle-icon">▲</span>
-                </div>
-                <div class="sim-body" id="sim-body">
-                    <p class="sim-desc">Use this panel to simulate different dates and times to test Friday 6 PM – 10 PM EST constraints.</p>
-                    <div class="sim-controls">
-                        <div class="control-group">
-                            <label for="sim-date">Simulated Date:</label>
-                            <input type="date" id="sim-date" value="2026-08-14">
-                        </div>
-                        <div class="control-group">
-                            <label for="sim-time">Simulated Time (24h):</label>
-                            <input type="time" id="sim-time" value="19:30">
-                        </div>
-                        <div class="control-group checkbox-group">
-                            <input type="checkbox" id="enable-sim">
-                            <label for="enable-sim">Enable Simulation</label>
-                        </div>
-                    </div>
-                    <div class="quick-scenarios">
-                        <span>Quick Scenarios (Friday):</span>
-                        <button onclick="setQuickScenario('2026-08-14', '17:00')">5:00 PM (Before Window)</button>
-                        <button onclick="setQuickScenario('2026-08-14', '19:30')">7:30 PM (Active Window)</button>
-                        <button onclick="setQuickScenario('2026-08-14', '22:30')">10:30 PM (After Close/Locked)</button>
-                        <button onclick="setQuickScenario('2026-08-15', '09:00')">Saturday (Not School Day)</button>
-                    </div>
-                    <div class="sim-indicators">
-                        <span class="indicator-item">Current Time (EST): <strong id="est-current-time">--:--</strong></span>
-                        <span class="indicator-item">Effective Attendance Date: <strong id="effective-date">--/--/----</strong></span>
-                        <span class="indicator-item">Authorized Role: <strong id="active-user-role" class="text-warning">Visitor</strong></span>
-                    </div>
-                </div>
-            </section>
-
             <!-- Excel File Upload / Template download (Developer Mode only) -->
             
 
@@ -278,6 +241,7 @@
                     <select id="main-mode-select" onchange="handleModeChange()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--accent-color); background: var(--bg-secondary); color: var(--text-primary); font-weight: 700; cursor: pointer;">
                         <option value="Attendance" selected>📝 Attendance (P / A)</option>
                         <option value="Homework">📚 Homework (4 Categories)</option>
+                        <option value="Test">🧪 Test (Marks / 100)</option>
                     </select>
                 </div>
 
@@ -367,6 +331,10 @@
                         <span class="stat-tag tag-success" title="Perfection Rate">⭐ Perfection: <strong id="stat-hw-perf">0/0</strong></span>
                         <span class="stat-tag tag-success" title="Handwriting Rate">✍️ Handwriting: <strong id="stat-hw-hand">0/0</strong></span>
                         <span class="stat-tag tag-success" title="Effort Rate">💪 Effort: <strong id="stat-hw-eff">0/0</strong></span>
+                    </div>
+                    <div class="selection-stats" id="test-stats-container" style="display:none; gap: 6px;">
+                        <span class="stat-tag tag-success">🧪 Entered: <strong id="stat-test-entered">0/0</strong></span>
+                        <span class="stat-tag tag-warning">Average: <strong id="stat-test-average">—</strong></span>
                     </div>
                 </div>
 
@@ -532,6 +500,8 @@
 
 
     <script src="chart.js"></script>
+    <script src="sync-config.js"></script>
+    <script src="sync.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

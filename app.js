@@ -51,10 +51,12 @@ const COMMITTEE_ROSTER = [
 let appState = {
     currentLocation: LOCATIONS[0],
     currentTab: "Students",
-    currentMode: "Attendance", // "Attendance" or "Homework"
+    currentMode: "Attendance", // "Attendance", "Homework", or "Test"
+    activeDate: "",
     currentFilter: "all",
     searchQuery: "",
     currentUserRole: null,
+    customRosterSaved: false,
 
     teachers: [...DEFAULT_TEACHERS],
     students: [...DEFAULT_STUDENTS],
@@ -64,6 +66,7 @@ let appState = {
         Students: {}
     },
     homework: {}, // { [dateStr]: { [studentId]: { ontime: 'Y', perfection: 'Y', handwriting: 'Y', effort: 'Y' } } }
+    tests: {}, // { [weekDate]: { [studentId]: number (0-100) } }
 
     lockedDates: [],
     attestations: {},
@@ -89,12 +92,6 @@ const statPresent = document.getElementById("stat-present");
 const statAbsent = document.getElementById("stat-absent");
 const statUnmarked = document.getElementById("stat-unmarked");
 
-// Simulation
-const enableSimCheckbox = document.getElementById("enable-sim");
-const simDateInput = document.getElementById("sim-date");
-const simTimeInput = document.getElementById("sim-time");
-const estCurrentTimeSpan = document.getElementById("est-current-time");
-const effectiveDateSpan = document.getElementById("effective-date");
 const timeWindowStatusDiv = document.getElementById("time-window-status");
 const statusTitleSpan = document.getElementById("status-title");
 const statusTimeSpan = document.getElementById("status-time");
@@ -106,12 +103,17 @@ const pinErrorMsg = document.getElementById("pin-error-msg");
 const activeUserRoleSpan = document.getElementById("active-user-role");
 
 // Initialize application
-document.addEventListener("DOMContentLoaded", () => {
-    const nowEst = getEstDateTime(new Date());
-    simDateInput.value = nowEst.toISOString().split('T')[0];
-    simTimeInput.value = String(nowEst.getHours()).padStart(2, '0') + ":" + String(nowEst.getMinutes()).padStart(2, '0');
-
+document.addEventListener("DOMContentLoaded", async () => {
     loadStateFromLocalStorage();
+    if (!appState.activeDate) appState.activeDate = getDefaultWeeklyDate();
+    if (window.AttendanceSync?.enabled()) {
+        try {
+            const sharedState = await window.AttendanceSync.load();
+            if (sharedState) applyPersistedState(sharedState, false);
+        } catch (error) {
+            console.warn("Shared data service unavailable; using this device's offline copy.", error);
+        }
+    }
     loadDefaultWorkbook();
     checkAccessGate();
     setupDragAndDrop();
@@ -143,11 +145,9 @@ function checkAccessGate() {
         // Update active date bar visibility
         updateActiveDateBar();
 
-        // Developer & Admin panels (Hide simulation panel completely for Teachers)
+        // Developer & Admin panels
         const isDeveloper = appState.currentUserRole.role === "Developer";
         const isAdmin = isAdminRole(appState.currentUserRole.role);
-        const canViewSimulation = (isDeveloper || isAdmin) && appState.currentUserRole.role !== "Teacher";
-        document.getElementById("simulation-panel").style.display = canViewSimulation ? "block" : "none";
         document.getElementById("file-operations-section").style.display = (isDeveloper || isAdmin) ? "block" : "none";
 
         // Admin-only panels (Audit, Attestation)
@@ -158,7 +158,6 @@ function checkAccessGate() {
 
         // If teacher, lock down UI
         if (appState.currentUserRole.role === "Teacher") {
-            document.getElementById("simulation-panel").style.display = "none";
             document.getElementById("file-operations-section").style.display = "none";
             appState.currentLocation = appState.currentUserRole.location;
             appState.currentTab = "Students";
@@ -232,7 +231,6 @@ function checkAccessGate() {
         document.getElementById("main-app-container").style.pointerEvents = "none";
         activeUserRoleSpan.textContent = "Visitor";
         document.getElementById("active-date-bar").style.display = "none";
-        document.getElementById("simulation-panel").style.display = "none";
         document.getElementById("file-operations-section").style.display = "none";
 
         // Reset overlay controls - default to Riverview so role selection is readily available
@@ -297,14 +295,7 @@ function handleDateChange() {
     const selectedDate = picker.value;
     if (!selectedDate) return;
 
-    // Override the sim date to use the picked date
-    const simDateInput = document.getElementById("sim-date");
-    const simTimeInput = document.getElementById("sim-time");
-    const enableSim = document.getElementById("enable-sim");
-
-    simDateInput.value = selectedDate;
-    simTimeInput.value = "19:30"; // Friday evening
-    enableSim.checked = true;
+    appState.activeDate = selectedDate;
 
     updateActiveDateBar();
     updateDateTimeAndRules();
@@ -458,6 +449,29 @@ function handleModeChange() {
         initializeDefaultHomeworkForClass();
     }
 
+    saveStateToLocalStorage();
+    renderList();
+}
+
+function setTestMark(id, value) {
+    const activeDate = getActiveDateString();
+    if (appState.lockedDates.includes(activeDate) && !canBypassLock()) {
+        alert("This record is locked and cannot be edited.");
+        renderList();
+        return;
+    }
+    const mark = value === "" ? null : Number(value);
+    if (mark !== null && (!Number.isInteger(mark) || mark < 0 || mark > 100)) {
+        alert("Enter a whole-number test mark from 0 to 100.");
+        renderList();
+        return;
+    }
+    if (!appState.tests) appState.tests = {};
+    if (!appState.tests[activeDate]) appState.tests[activeDate] = {};
+    if (mark === null) delete appState.tests[activeDate][id];
+    else appState.tests[activeDate][id] = Math.round(mark);
+    const student = appState.students.find(s => s.ID === id);
+    logActivity(`${appState.currentUserRole?.name || "User"} ${mark === null ? "cleared" : "recorded"} Test mark ${mark ?? ""} for ${student?.Name || id} on ${activeDate}`);
     saveStateToLocalStorage();
     renderList();
 }
@@ -757,38 +771,7 @@ function canBypassLock() {
 
 // Time and rules validation
 function updateDateTimeAndRules() {
-    let now;
-    if (enableSimCheckbox.checked) {
-        const simDateStr = simDateInput.value;
-        const simTimeStr = simTimeInput.value;
-        now = new Date(`${simDateStr}T${simTimeStr}:00`);
-    } else {
-        now = getEstDateTime(new Date());
-    }
-
-    const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
-    estCurrentTimeSpan.textContent = now.toLocaleTimeString('en-US', timeOptions) + " EST";
-
-    const dayOfWeek = now.getDay();
-    let effectiveDate = new Date(now);
-
-    if (dayOfWeek !== 5) {
-        const daysToFriday = (5 - dayOfWeek + 7) % 7;
-        effectiveDate.setDate(now.getDate() + daysToFriday);
-    }
-
-    const dateStr = effectiveDate.toISOString().split('T')[0];
-    effectiveDateSpan.textContent = dateStr + " (Friday)";
-
-    const isFriday = now.getDay() === 5;
-    const hour = now.getHours();
-    const minutes = now.getMinutes();
-    const timeVal = hour * 60 + minutes;
-
-    const windowStart = 18 * 60; // 6:00 PM
-    const windowEnd = 22 * 60;   // 10:00 PM
-
-    const isWithinTimeWindow = isFriday && (timeVal >= windowStart && timeVal < windowEnd);
+    const dateStr = getActiveDateString();
     const isDateLocked = appState.lockedDates.includes(dateStr);
 
     // Manage Attestation checks (Principals & VPs can toggle anytime)
@@ -818,19 +801,10 @@ function updateDateTimeAndRules() {
         } else {
             statusTimeSpan.textContent = `${dateStr} Submitted`;
         }
-    } else if (isWithinTimeWindow) {
-        timeWindowStatusDiv.classList.add("active");
-        statusTitleSpan.textContent = "Window Active";
-        const minutesLeft = windowEnd - timeVal;
-        statusTimeSpan.textContent = `Closes in ${Math.floor(minutesLeft / 60)}h ${minutesLeft % 60}m`;
     } else {
-        timeWindowStatusDiv.classList.add("outside-hours");
-        statusTitleSpan.textContent = "Session Closed";
-        if (isFriday && timeVal >= windowEnd) {
-            statusTimeSpan.textContent = "Closed for Today";
-        } else {
-            statusTimeSpan.textContent = "Opens Friday 6 PM EST";
-        }
+        timeWindowStatusDiv.classList.add("active");
+        statusTitleSpan.textContent = "Weekly Record Open";
+        statusTimeSpan.textContent = formatDateForDisplay(dateStr);
     }
 
     // Keep date bar in sync
@@ -889,28 +863,6 @@ function handleAttestationChange() {
         submitBtn.disabled = true;
         submitBtn.textContent = "✍️ Awaiting Principal & VP Sign-Off";
     }
-}
-
-// Toggle simulation panel collapse
-function toggleSimPanel() {
-    const simBody = document.getElementById("sim-body");
-    const toggleIcon = document.getElementById("sim-toggle-icon");
-    if (simBody.style.display === "none") {
-        simBody.style.display = "flex";
-        toggleIcon.textContent = "▲";
-    } else {
-        simBody.style.display = "none";
-        toggleIcon.textContent = "▼";
-    }
-}
-
-// Quick Scenario helper
-function setQuickScenario(dateStr, timeStr) {
-    enableSimCheckbox.checked = true;
-    simDateInput.value = dateStr;
-    simTimeInput.value = timeStr;
-    updateDateTimeAndRules();
-    renderList();
 }
 
 let masterStudentList = null;
@@ -1057,11 +1009,9 @@ function loadDefaultWorkbook() {
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 appState.workbook = workbook;
 
-                const saved = localStorage.getItem("attendance_tracker_state_v7");
-                let parsed = null;
-                if (saved) {
-                    try { parsed = JSON.parse(saved); } catch(e) {}
-                }
+                // v8 is the active storage key. Checking only v7 here rebuilt
+                // the workbook and discarded attendance saved by current builds.
+                const parsed = getPersistedState();
 
                 // If admin explicitly customized roster, keep customized roster
                 if (parsed && parsed.customRosterSaved && parsed.students && parsed.students.length > 0) {
@@ -1515,26 +1465,14 @@ function updateWorkbookData() {
 }
 
 function getActiveDateString() {
-    let now;
-    if (enableSimCheckbox.checked) {
-        now = new Date(`${simDateInput.value}T${simTimeInput.value}:00`);
-    } else {
-        now = getEstDateTime(new Date());
-    }
+    return appState.activeDate || getDefaultWeeklyDate();
+}
 
-    const dayOfWeek = now.getDay();
-    let effectiveDate = new Date(now);
-    
-    if (dayOfWeek === 6) { 
-        effectiveDate.setDate(now.getDate() - 1); // Saturday -> Friday
-    } else if (dayOfWeek === 0) { 
-        effectiveDate.setDate(now.getDate() - 2); // Sunday -> Friday
-    } else if (dayOfWeek !== 5) {
-        const daysToFriday = 5 - dayOfWeek;
-        effectiveDate.setDate(now.getDate() + daysToFriday); // Mon-Thu -> Friday
-    }
-    
-    return effectiveDate.toISOString().split('T')[0];
+function getDefaultWeeklyDate() {
+    const date = getEstDateTime(new Date());
+    const daysToFriday = (5 - date.getDay() + 7) % 7;
+    date.setDate(date.getDate() + daysToFriday);
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
 // Set individual attendance status with Lock Bypass for Principals & VPs
@@ -1735,6 +1673,7 @@ function renderList() {
     const activeDate = getActiveDateString();
     const isLocked = appState.lockedDates.includes(activeDate);
     const isHomeworkMode = (tab === "Students" && appState.currentMode === "Homework");
+    const isTestMode = (tab === "Students" && appState.currentMode === "Test");
 
     // Sync mode picker
     const mainModePicker = document.getElementById("main-mode-picker");
@@ -1859,6 +1798,7 @@ function renderList() {
     const homeworkActionsGroup = document.getElementById("homework-actions-group");
     const selectionStatsGroup = document.getElementById("selection-stats-container");
     const homeworkStatsGroup = document.getElementById("homework-stats-container");
+    const testStatsGroup = document.getElementById("test-stats-container");
     const tableHeadersRow = document.getElementById("table-headers-row");
 
     const isTeacher = appState.currentUserRole && appState.currentUserRole.role === "Teacher";
@@ -1869,6 +1809,7 @@ function renderList() {
         if (homeworkActionsGroup) homeworkActionsGroup.style.display = "flex";
         if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
         if (homeworkStatsGroup) homeworkStatsGroup.style.display = "flex";
+        if (testStatsGroup) testStatsGroup.style.display = "none";
 
         tableHeadersRow.innerHTML = `
             <th style="width: 70px;">ID</th>
@@ -1901,12 +1842,32 @@ function renderList() {
         if (statHand) statHand.textContent = `${totalHand}/${totalKids}`;
         if (statEff) statEff.textContent = `${totalEff}/${totalKids}`;
 
+    } else if (isTestMode) {
+        currentSheetTitle.textContent = `Weekly Test Marks — ${formatDateForDisplay(activeDate)}`;
+        if (statusFiltersGroup) statusFiltersGroup.style.display = "none";
+        if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = "none";
+        if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+        if (testStatsGroup) testStatsGroup.style.display = "flex";
+
+        tableHeadersRow.innerHTML = `
+            <th style="width: 70px;">ID</th>
+            <th>Name</th>
+            ${!isTeacher ? `<th id="th-info" style="min-width: 90px;">Grade</th>` : ``}
+            <th class="center-align">🧪 Test Mark <small>/ 100</small></th>
+        `;
+        const marks = items.map(s => appState.tests?.[activeDate]?.[s.ID]).filter(Number.isFinite);
+        const entered = document.getElementById("stat-test-entered");
+        const average = document.getElementById("stat-test-average");
+        if (entered) entered.textContent = `${marks.length}/${items.length}`;
+        if (average) average.textContent = marks.length ? `${(marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(1)} / 100` : "—";
     } else {
         currentSheetTitle.textContent = tab === "Students" ? "Students List" : "Teachers List";
         if (statusFiltersGroup) statusFiltersGroup.style.display = "flex";
         if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
         if (selectionStatsGroup) selectionStatsGroup.style.display = "flex";
         if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
+        if (testStatsGroup) testStatsGroup.style.display = "none";
 
         tableHeadersRow.innerHTML = `
             <th style="width: 80px;">ID</th>
@@ -1968,6 +1929,22 @@ function renderList() {
                 <td class="hw-cell">${renderHwToggle('perfection', hwData.perfection)}</td>
                 <td class="hw-cell">${renderHwToggle('handwriting', hwData.handwriting)}</td>
                 <td class="hw-cell">${renderHwToggle('effort', hwData.effort)}</td>
+            `;
+            attendanceTbody.appendChild(tr);
+
+        } else if (isTestMode) {
+            filteredCount++;
+            const mark = appState.tests?.[activeDate]?.[item.ID];
+            const input = (isLocked && !canBypassLock())
+                ? `<span class="test-mark-locked">${Number.isFinite(mark) ? mark : "—"} <small>/ 100</small></span>`
+                : `<input class="test-mark-input" type="number" min="0" max="100" step="1" inputmode="numeric" value="${Number.isFinite(mark) ? mark : ""}" placeholder="0–100" aria-label="Test mark for ${item.Name}" onchange="setTestMark('${item.ID}', this.value)">`;
+            const idHtml = `<strong style="cursor:pointer; color:var(--accent-color); text-decoration:underline;" onclick="openStudentModal('${item.ID}')">${item.ID}</strong>`;
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${idHtml}</td>
+                <td><strong>${item.Name}</strong></td>
+                ${!isTeacher ? `<td>${item.Grade}</td>` : ``}
+                <td class="center-align test-mark-cell">${input}</td>
             `;
             attendanceTbody.appendChild(tr);
 
@@ -2211,7 +2188,18 @@ function generateExportWorkbook() {
     const wsHwSummary = XLSX.utils.json_to_sheet(hwSummaryRows);
     XLSX.utils.book_append_sheet(wb, wsHwSummary, "Homework_Summary");
 
-    // 4. Teachers Sheet
+    // 4. Weekly Test Marks — one row per student for the selected weekly date.
+    const testRows = appState.students.map(s => ({
+        "Student ID": s.ID,
+        "Student Name": s.Name,
+        "Class": s.Grade,
+        "Test Date": activeDate,
+        "Mark / 100": Number.isFinite(appState.tests?.[activeDate]?.[s.ID]) ? appState.tests[activeDate][s.ID] : ""
+    }));
+    const wsTests = XLSX.utils.json_to_sheet(testRows.length ? testRows : [{ "Student ID": "", "Student Name": "None", "Class": "", "Test Date": activeDate, "Mark / 100": "" }]);
+    XLSX.utils.book_append_sheet(wb, wsTests, "Weekly_Test_Marks");
+
+    // 5. Teachers Sheet
     const teachersData = appState.teachers.map(t => {
         const parts = t.Name.split(" ");
         const fName = parts[0] || t.Name;
@@ -2233,7 +2221,7 @@ function generateExportWorkbook() {
     const wsTeachers = XLSX.utils.json_to_sheet(teachersData);
     XLSX.utils.book_append_sheet(wb, wsTeachers, "Teacher");
 
-    // 5. Committee Sheet
+    // 6. Committee Sheet
     const committeeData = COMMITTEE_ROSTER.map(c => ({
         "ID": c.ID,
         "Name": c.Name,
@@ -2242,7 +2230,7 @@ function generateExportWorkbook() {
     const wsCommittee = XLSX.utils.json_to_sheet(committeeData);
     XLSX.utils.book_append_sheet(wb, wsCommittee, "Committee");
 
-    // 6. Audit Logs Sheet
+    // 7. Audit Logs Sheet
     const logsData = (appState.logs || []).map((logLine, index) => ({
         "Index": index + 1,
         "Activity Details": logLine
@@ -2250,7 +2238,7 @@ function generateExportWorkbook() {
     const wsLogs = XLSX.utils.json_to_sheet(logsData.length ? logsData : [{ "Index": 1, "Activity Details": "No activity logged" }]);
     XLSX.utils.book_append_sheet(wb, wsLogs, "Audit Logs");
 
-    // 7. Dashboard Summary Sheet
+    // 8. Dashboard Summary Sheet
     const summaryData = GRADES.map(g => {
         const classKids = appState.students.filter(s => s.Grade === g);
         let p = 0, a = 0, u = 0;
@@ -2474,35 +2462,47 @@ function submitAttendance() {
 
 // LocalStorage helpers
 function saveStateToLocalStorage() {
-    localStorage.setItem("attendance_tracker_state_v8", JSON.stringify({
+    const persisted = getPersistedState();
+    try {
+        localStorage.setItem("attendance_tracker_state_v8", JSON.stringify(persisted));
+    } catch (error) {
+        console.error("Could not save offline attendance data", error);
+        alert("This device is out of storage. Export the attendance file, then clear old browser data.");
+    }
+    if (window.AttendanceSync?.enabled()) window.AttendanceSync.queue(getSharedPersistedState());
+}
+
+function getPersistedState() {
+    return {
         teachers: appState.teachers,
         students: appState.students,
         attendance: appState.attendance,
         homework: appState.homework,
+        tests: appState.tests,
         currentMode: appState.currentMode,
+        activeDate: appState.activeDate,
         lockedDates: appState.lockedDates,
         attestations: appState.attestations,
         currentUserRole: appState.currentUserRole,
+        customRosterSaved: appState.customRosterSaved,
         logs: appState.logs,
         committee: COMMITTEE_ROSTER,
         leadership: LEADERSHIP_ROSTER
-    }));
+    };
+}
+
+function getSharedPersistedState() {
+    const state = getPersistedState();
+    delete state.currentUserRole;
+    state.logs = state.logs.slice(0, 250);
+    return state;
 }
 
 function loadStateFromLocalStorage() {
     const saved = localStorage.getItem("attendance_tracker_state_v8") || localStorage.getItem("attendance_tracker_state_v7");
     if (saved) {
         try {
-            const parsed = JSON.parse(saved);
-            if (parsed.teachers) appState.teachers = parsed.teachers;
-            if (parsed.students) appState.students = parsed.students;
-            if (parsed.attendance) appState.attendance = parsed.attendance;
-            if (parsed.homework) appState.homework = parsed.homework;
-            if (parsed.currentMode) appState.currentMode = parsed.currentMode;
-            if (parsed.lockedDates) appState.lockedDates = parsed.lockedDates;
-            if (parsed.attestations) appState.attestations = parsed.attestations;
-            if (parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;
-            if (parsed.logs) appState.logs = parsed.logs;
+            applyPersistedState(JSON.parse(saved), true);
         } catch (e) {
             console.error("Error loading LocalStorage state", e);
         }
@@ -2510,12 +2510,40 @@ function loadStateFromLocalStorage() {
     renderAuditLogs();
 }
 
+function applyPersistedState(parsed, includeSession) {
+    if (parsed.teachers) appState.teachers = parsed.teachers;
+    if (parsed.students) appState.students = parsed.students;
+    if (parsed.attendance) appState.attendance = parsed.attendance;
+    if (parsed.homework) appState.homework = parsed.homework;
+    if (parsed.tests) appState.tests = parsed.tests;
+    if (parsed.currentMode) appState.currentMode = parsed.currentMode;
+    if (parsed.activeDate) appState.activeDate = parsed.activeDate;
+    if (parsed.lockedDates) appState.lockedDates = parsed.lockedDates;
+    if (parsed.attestations) appState.attestations = parsed.attestations;
+    if (parsed.customRosterSaved) appState.customRosterSaved = true;
+    if (includeSession && parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;
+    if (parsed.logs) appState.logs = parsed.logs.slice(0, 250);
+    if (parsed.committee?.length) {
+        COMMITTEE_ROSTER.length = 0;
+        COMMITTEE_ROSTER.push(...parsed.committee);
+    }
+    if (parsed.leadership?.length) {
+        LEADERSHIP_ROSTER.length = 0;
+        LEADERSHIP_ROSTER.push(...parsed.leadership);
+    }
+    renderAuditLogs();
+}
+
 function clearLoadedFile() {
     if (confirm("Are you sure you want to remove the loaded spreadsheet and revert to defaults? Any unsaved data will be lost.")) {
+        localStorage.removeItem("attendance_tracker_state_v8");
         localStorage.removeItem("attendance_tracker_state_v7");
         appState.teachers = [...DEFAULT_TEACHERS];
         appState.students = [...DEFAULT_STUDENTS];
         appState.attendance = { Teachers: {}, Students: {} };
+        appState.homework = {};
+        appState.tests = {};
+        appState.activeDate = getDefaultWeeklyDate();
         appState.lockedDates = [];
         appState.attestations = {};
         appState.currentUserRole = null;
