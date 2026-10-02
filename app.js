@@ -140,7 +140,7 @@ function checkAccessGate() {
         if (appState.currentUserRole.grade) {
             roleStr += ` - ${appState.currentUserRole.grade}`;
         }
-        activeUserRoleSpan.textContent = appState.currentUserRole.name + ` (${roleStr})`;
+        if (activeUserRoleSpan) activeUserRoleSpan.textContent = appState.currentUserRole.name + ` (${roleStr})`;
 
         // Update active date bar visibility
         updateActiveDateBar();
@@ -229,7 +229,7 @@ function checkAccessGate() {
         pinGateOverlay.style.display = "flex";
         document.getElementById("main-app-container").style.filter = "blur(10px)";
         document.getElementById("main-app-container").style.pointerEvents = "none";
-        activeUserRoleSpan.textContent = "Visitor";
+        if (activeUserRoleSpan) activeUserRoleSpan.textContent = "Visitor";
         document.getElementById("active-date-bar").style.display = "none";
         document.getElementById("file-operations-section").style.display = "none";
 
