@@ -1,6 +1,9 @@
 /**
- * TBTA Attendance Tracker - Shared State & GitHub Auto-Commit Client
- * Keeps the portal 100% usable offline while syncing seamlessly across all teacher logins and GitHub.
+ * TBTA Attendance Tracker - Shared State, Google Drive & GitHub Auto-Sync Client
+ * Supports:
+ * 1. Google Drive & Google Sheets Live Webhook (Zero tokens required for teachers)
+ * 2. GitHub Auto-Commit Engine
+ * 3. Offline-first local storage
  */
 (function () {
     const config = window.ATTENDANCE_SYNC_CONFIG || {};
@@ -20,6 +23,19 @@
     let lastSyncMessage = "";
     let lastSyncTime = null;
 
+    function getGoogleDriveUrl() {
+        return (config.googleDriveUrl || "").trim() ||
+               (localStorage.getItem("tbta_google_drive_url") || "").trim();
+    }
+
+    function setGoogleDriveUrl(url) {
+        if (url) {
+            localStorage.setItem("tbta_google_drive_url", url.trim());
+        } else {
+            localStorage.removeItem("tbta_google_drive_url");
+        }
+    }
+
     function getGitHubToken() {
         return (config.github && config.github.token) ||
                localStorage.getItem("tbta_github_sync_token") ||
@@ -35,15 +51,16 @@
         }
     }
 
+    function isGoogleDriveMode() {
+        return Boolean(getGoogleDriveUrl()) || config.mode === "google_drive";
+    }
+
     function isGitHubMode() {
-        return (config.mode === "github" || (!config.apiUrl && ghConfig.owner && ghConfig.repo));
+        return (!isGoogleDriveMode() && (config.mode === "github" || (ghConfig.owner && ghConfig.repo)));
     }
 
     function enabled() {
-        if (isGitHubMode()) {
-            return Boolean(ghConfig.owner && ghConfig.repo);
-        }
-        return /^https?:\/\//i.test(config.apiUrl || "");
+        return Boolean(getGoogleDriveUrl()) || Boolean(ghConfig.owner && ghConfig.repo) || /^https?:\/\//i.test(config.apiUrl || "");
     }
 
     function dispatchStatus(status, message) {
@@ -56,7 +73,8 @@
                 message: message,
                 time: lastSyncTime,
                 hasToken: Boolean(getGitHubToken()),
-                mode: isGitHubMode() ? "github" : "custom_api"
+                hasGdrive: Boolean(getGoogleDriveUrl()),
+                mode: isGoogleDriveMode() ? "google_drive" : (isGitHubMode() ? "github" : "custom_api")
             }
         }));
     }
@@ -77,10 +95,6 @@
         return JSON.stringify(a) === JSON.stringify(b);
     }
 
-    /**
-     * 3-Way Recursive Merge for Attendance, Homework, Tests, and Logs
-     * Ensures Teacher A saving Nilai-1 NEVER overwrites Teacher B saving Nilai-2.
-     */
     function threeWay(base, remote, local) {
         if (same(local, base)) return clone(remote);
         if (same(remote, base)) return clone(local);
@@ -111,7 +125,66 @@
     }
 
     /**
-     * GitHub API Requests
+     * Google Drive & Google Sheets Sync
+     */
+    async function syncToGoogleDrive(localState) {
+        const gUrl = getGoogleDriveUrl();
+        if (!gUrl) {
+            dispatchStatus("auth_required", "⚠️ Google Drive or GitHub not connected yet. Saved locally.");
+            return false;
+        }
+
+        dispatchStatus("saving", "⏳ Syncing attendance to Google Drive & Sheets...");
+
+        try {
+            const payload = {
+                ...localState,
+                updatedAt: new Date().toISOString(),
+                updatedBy: (window.appState && window.appState.currentUserRole) ? window.appState.currentUserRole.name : "Teacher"
+            };
+
+            const response = await fetch(gUrl, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json().catch(() => ({ status: "success" }));
+            if (result.status === "error") {
+                dispatchStatus("error", "❌ Google Drive sync error: " + (result.message || "Unknown error"));
+                return false;
+            }
+
+            baseState = clone(localState);
+            dispatchStatus("saved", "☁️ Successfully synced to Google Drive & Sheets!");
+            return true;
+        } catch (e) {
+            console.error("Google Drive sync failed", e);
+            dispatchStatus("offline", "📱 Saved locally. (Google Drive webhook unreachable)");
+            return false;
+        }
+    }
+
+    async function loadGoogleDriveState() {
+        const gUrl = getGoogleDriveUrl();
+        if (!gUrl) return null;
+
+        try {
+            const response = await fetch(gUrl + (gUrl.includes("?") ? "&" : "?") + "action=read&_t=" + Date.now());
+            const data = await response.json().catch(() => null);
+            if (data && data.state) {
+                baseState = clone(data.state);
+                dispatchStatus("ready", "☁️ Loaded latest attendance from Google Drive");
+                return data.state;
+            }
+        } catch (e) {
+            console.warn("Could not fetch initial state from Google Drive", e);
+        }
+        return null;
+    }
+
+    /**
+     * GitHub Commit Sync
      */
     async function ghRequest(url, options = {}) {
         const token = getGitHubToken();
@@ -119,9 +192,7 @@
             "Accept": "application/vnd.github.v3+json",
             ...(options.headers || {})
         };
-        if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-        }
+        if (token) headers["Authorization"] = `Bearer ${token}`;
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 12000);
@@ -134,87 +205,62 @@
         }
     }
 
-    /**
-     * Load state from GitHub (Raw fallback + GitHub API)
-     */
     async function loadGitHubState() {
         const { owner, repo, branch, filePath } = ghConfig;
         const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}?_nocache=${Date.now()}`;
-        
         let loadedData = null;
 
-        // Try raw fast fetch first
         try {
             const rawRes = await fetch(rawUrl, { cache: "no-store" });
-            if (rawRes.ok) {
-                loadedData = await rawRes.json();
-            }
+            if (rawRes.ok) loadedData = await rawRes.json();
         } catch (e) {
-            console.warn("Raw GitHub fetch failed, attempting API fetch...", e);
+            console.warn("Raw GitHub fetch failed", e);
         }
 
-        // Fetch file SHA and metadata via API
         try {
             const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&_t=${Date.now()}`;
             const apiRes = await ghRequest(apiUrl);
             if (apiRes.ok && apiRes.data) {
                 remoteSha = apiRes.data.sha;
                 if (!loadedData && apiRes.data.content) {
-                    const text = base64ToUtf8(apiRes.data.content);
-                    loadedData = JSON.parse(text);
+                    loadedData = JSON.parse(base64ToUtf8(apiRes.data.content));
                 }
             } else if (apiRes.status === 404) {
-                remoteSha = null; // New file to be created
+                remoteSha = null;
             }
-        } catch (e) {
-            console.warn("GitHub API file info check failed", e);
-        }
+        } catch (e) {}
 
         if (loadedData) {
             baseState = clone(loadedData);
             dispatchStatus("ready", "☁️ Loaded latest state from GitHub");
             return loadedData;
         }
-
         return null;
     }
 
-    /**
-     * Commit state directly to GitHub repository
-     */
     async function commitToGitHub(localState) {
         const token = getGitHubToken();
         const { owner, repo, branch, filePath } = ghConfig;
 
         if (!token) {
-            dispatchStatus("auth_required", "⚠️ GitHub Token required to sync online. Attendance saved to this device.");
+            dispatchStatus("auth_required", "⚠️ Token needed for GitHub sync. Attendance saved locally.");
             return false;
         }
 
-        dispatchStatus("saving", "⏳ Syncing attendance to GitHub repository...");
+        dispatchStatus("saving", "⏳ Syncing attendance to GitHub...");
 
-        // 1. Fetch current remote state & SHA to prevent race conditions
         let currentRemote = null;
         try {
             const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&_t=${Date.now()}`;
             const res = await ghRequest(apiUrl);
             if (res.ok && res.data) {
                 remoteSha = res.data.sha;
-                if (res.data.content) {
-                    const text = base64ToUtf8(res.data.content);
-                    currentRemote = JSON.parse(text);
-                }
+                if (res.data.content) currentRemote = JSON.parse(base64ToUtf8(res.data.content));
             } else if (res.status === 404) {
                 remoteSha = null;
-            } else if (res.status === 401 || res.status === 403) {
-                dispatchStatus("auth_required", "❌ Invalid or expired GitHub Token. Please update in System Tools.");
-                return false;
             }
-        } catch (e) {
-            console.warn("Could not get current remote SHA, attempting direct commit...", e);
-        }
+        } catch (e) {}
 
-        // 2. Perform non-destructive 3-way merge
         let finalState = localState;
         if (currentRemote) {
             finalState = threeWay(baseState || {}, currentRemote, localState);
@@ -222,19 +268,15 @@
             finalState.updatedAt = new Date().toISOString();
         }
 
-        // 3. Commit to GitHub API
         const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-        const contentStr = JSON.stringify(finalState, null, 2);
-        const base64Content = utf8ToBase64(contentStr);
+        const base64Content = utf8ToBase64(JSON.stringify(finalState, null, 2));
 
         const payload = {
             message: `Update attendance records [TBTA Portal] (${new Date().toLocaleDateString()}) [skip ci]`,
             content: base64Content,
             branch: branch
         };
-        if (remoteSha) {
-            payload.sha = remoteSha;
-        }
+        if (remoteSha) payload.sha = remoteSha;
 
         try {
             const putRes = await ghRequest(apiUrl, {
@@ -246,30 +288,22 @@
             if (putRes.ok) {
                 remoteSha = putRes.data?.content?.sha || remoteSha;
                 baseState = clone(finalState);
-                dispatchStatus("saved", "☁️ Successfully committed to GitHub repository!");
-                
-                // If merged state contains remote entries not in local state, notify app
+                dispatchStatus("saved", "☁️ Successfully committed to GitHub!");
                 if (window.applyPersistedState && !same(finalState, localState)) {
                     window.applyPersistedState(finalState, false);
                     if (window.renderList) window.renderList();
                 }
                 return true;
             } else {
-                const errorMsg = putRes.data?.message || `HTTP ${putRes.status}`;
-                console.error("GitHub Commit Failed:", putRes);
-                dispatchStatus("error", `❌ GitHub Sync Error: ${errorMsg}`);
+                dispatchStatus("error", `❌ GitHub Sync Error: ${putRes.data?.message || putRes.status}`);
                 return false;
             }
         } catch (e) {
-            console.error("Network error during GitHub commit:", e);
-            dispatchStatus("offline", "📱 Network offline. Saved locally on this device.");
+            dispatchStatus("offline", "📱 Network offline. Saved locally.");
             return false;
         }
     }
 
-    /**
-     * Flush queued updates
-     */
     async function flush() {
         if (!enabled() || isSending || !pending) return;
         isSending = true;
@@ -277,26 +311,10 @@
         pending = null;
 
         try {
-            if (isGitHubMode()) {
+            if (getGoogleDriveUrl()) {
+                await syncToGoogleDrive(local);
+            } else if (isGitHubMode()) {
                 await commitToGitHub(local);
-            } else {
-                // Custom server.py API
-                const baseUrl = String(config.apiUrl || "").replace(/\/$/, "");
-                const token = config.apiToken;
-                const headers = { "Content-Type": "application/json" };
-                if (token) headers["Authorization"] = `Bearer ${token}`;
-                
-                const response = await fetch(`${baseUrl}/api/state`, {
-                    method: "PUT",
-                    headers,
-                    body: JSON.stringify({ state: local })
-                });
-                if (response.ok) {
-                    baseState = clone(local);
-                    dispatchStatus("saved", "☁️ Synced to central server");
-                } else {
-                    dispatchStatus("offline", "⚠️ Server sync failed. Saved locally.");
-                }
             }
         } catch (error) {
             pending = pending || local;
@@ -312,30 +330,49 @@
     // Public API
     window.AttendanceSync = {
         enabled,
+        isGoogleDriveMode,
         isGitHubMode,
+        getGoogleDriveUrl,
+        setGoogleDriveUrl,
         getGitHubToken,
         setGitHubToken,
         getSyncStatus() {
+            const hasGdrive = Boolean(getGoogleDriveUrl());
+            const hasToken = Boolean(getGitHubToken());
             return {
-                mode: isGitHubMode() ? "github" : "custom_api",
-                configured: enabled(),
-                hasToken: Boolean(getGitHubToken()),
+                mode: hasGdrive ? "google_drive" : (isGitHubMode() ? "github" : "offline"),
+                hasGdrive: hasGdrive,
+                hasToken: hasToken,
                 status: lastSyncStatus,
                 message: lastSyncMessage,
                 lastSyncTime: lastSyncTime
             };
         },
         async testConnection() {
+            const gUrl = getGoogleDriveUrl();
+            if (gUrl) {
+                try {
+                    const testRes = await fetch(gUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify({ test: true, timestamp: new Date().toISOString() })
+                    });
+                    const d = await testRes.json().catch(() => ({ status: "success" }));
+                    if (d.status === "error") return { success: false, message: "Google Drive error: " + (d.message || "") };
+                    return { success: true, message: "Connected successfully to Google Drive & Google Sheets Webhook!" };
+                } catch (e) {
+                    return { success: false, message: "Could not connect to Google Drive webhook: " + e.message };
+                }
+            }
+
             const token = getGitHubToken();
-            if (!token) return { success: false, message: "No GitHub Token configured." };
+            if (!token) return { success: false, message: "No Google Drive Webhook URL or GitHub Token configured." };
             const { owner, repo, branch, filePath } = ghConfig;
             try {
                 const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}&_t=${Date.now()}`;
                 const res = await ghRequest(url);
-                if (res.ok) {
+                if (res.ok || res.status === 404) {
                     return { success: true, message: `Connected successfully to GitHub (${owner}/${repo} @ ${branch})!` };
-                } else if (res.status === 404) {
-                    return { success: true, message: `Connected to repository! Data file will be created on first commit.` };
                 } else {
                     return { success: false, message: `GitHub API error: ${res.data?.message || res.status}` };
                 }
@@ -344,19 +381,14 @@
             }
         },
         async load() {
-            if (!enabled()) return null;
+            if (getGoogleDriveUrl()) {
+                const gd = await loadGoogleDriveState();
+                if (gd) return gd;
+            }
             if (isGitHubMode()) {
                 return await loadGitHubState();
-            } else {
-                const baseUrl = String(config.apiUrl || "").replace(/\/$/, "");
-                const res = await fetch(`${baseUrl}/api/state`);
-                const data = await res.json().catch(() => ({}));
-                if (data.state) {
-                    baseState = clone(data.state);
-                    return data.state;
-                }
-                return null;
             }
+            return null;
         },
         queue(state) {
             if (!enabled()) return;

@@ -891,21 +891,19 @@ function updateDateTimeAndRules() {
         attestPrincipalCheck.disabled = false;
     }
 
-    timeWindowStatusDiv.className = "time-window-status";
+    if (timeWindowStatusDiv) timeWindowStatusDiv.className = "time-window-status";
     handleAttestationChange();
 
     if (isDateLocked) {
-        timeWindowStatusDiv.classList.add("locked");
-        statusTitleSpan.textContent = "Attendance Locked";
-        if (canBypassLock()) {
-            statusTimeSpan.textContent = "Principal Bypass Mode";
-        } else {
-            statusTimeSpan.textContent = `${dateStr} Submitted`;
+        if (timeWindowStatusDiv) timeWindowStatusDiv.classList.add("locked");
+        if (statusTitleSpan) statusTitleSpan.textContent = "Attendance Locked";
+        if (statusTimeSpan) {
+            statusTimeSpan.textContent = canBypassLock() ? "Principal Bypass Mode" : `${dateStr} Submitted`;
         }
     } else {
-        timeWindowStatusDiv.classList.add("active");
-        statusTitleSpan.textContent = "Weekly Record Open";
-        statusTimeSpan.textContent = formatDateForDisplay(dateStr);
+        if (timeWindowStatusDiv) timeWindowStatusDiv.classList.add("active");
+        if (statusTitleSpan) statusTitleSpan.textContent = "Weekly Record Open";
+        if (statusTimeSpan) statusTimeSpan.textContent = formatDateForDisplay(dateStr);
     }
 
     // Keep date bar in sync
@@ -3054,7 +3052,10 @@ window.addEventListener("attendance-sync-status", (e) => {
     const adminBadge = document.getElementById("admin-sync-badge");
     if (!badge || !dot || !text) return;
 
-    const { status, message, hasToken, mode } = e.detail;
+    const { status, message, hasToken, hasGdrive, mode } = e.detail;
+    const isConnected = hasGdrive || hasToken;
+    const serviceName = hasGdrive ? "Google Drive" : "GitHub";
+
     if (status === "saving") {
         dot.style.background = "#eab308";
         text.textContent = "⏳ Syncing...";
@@ -3062,7 +3063,7 @@ window.addEventListener("attendance-sync-status", (e) => {
         badge.style.color = "#eab308";
     } else if (status === "saved") {
         dot.style.background = "#10b981";
-        text.textContent = "☁️ Synced to GitHub";
+        text.textContent = `☁️ Synced (${serviceName})`;
         badge.style.borderColor = "rgba(16, 185, 129, 0.4)";
         badge.style.color = "#10b981";
         if (adminBadge) {
@@ -3071,23 +3072,18 @@ window.addEventListener("attendance-sync-status", (e) => {
             adminBadge.style.color = "var(--success-color)";
         }
     } else if (status === "auth_required") {
-        dot.style.background = "#f59e0b";
-        text.textContent = "⚠️ Token Needed";
-        badge.style.borderColor = "rgba(245, 158, 11, 0.4)";
-        badge.style.color = "#f59e0b";
-        if (adminBadge) {
-            adminBadge.textContent = "Token Needed";
-            adminBadge.style.background = "rgba(245, 158, 11, 0.15)";
-            adminBadge.style.color = "#f59e0b";
-        }
+        dot.style.background = "#3b82f6";
+        text.textContent = "📱 Saved Locally";
+        badge.style.borderColor = "rgba(59, 130, 246, 0.4)";
+        badge.style.color = "#3b82f6";
     } else if (status === "offline") {
         dot.style.background = "#94a3b8";
         text.textContent = "📱 Local (Offline)";
         badge.style.borderColor = "rgba(148, 163, 184, 0.3)";
         badge.style.color = "#94a3b8";
     } else if (status === "ready") {
-        dot.style.background = hasToken ? "#10b981" : "#3b82f6";
-        text.textContent = hasToken ? "☁️ GitHub: Connected" : "☁️ GitHub: Ready";
+        dot.style.background = isConnected ? "#10b981" : "#3b82f6";
+        text.textContent = isConnected ? `☁️ ${serviceName}: Connected` : "☁️ Cloud Sync: Ready";
     }
 });
 
@@ -3175,9 +3171,13 @@ function openGitHubSyncModal() {
     const modal = document.getElementById("github-sync-modal-overlay");
     if (modal) {
         modal.style.display = "flex";
-        const input = document.getElementById("modal-github-token-input");
-        if (input && window.AttendanceSync) {
-            input.value = window.AttendanceSync.getGitHubToken() || "";
+        const gInput = document.getElementById("modal-gdrive-url-input");
+        if (gInput && window.AttendanceSync) {
+            gInput.value = window.AttendanceSync.getGoogleDriveUrl() || "";
+        }
+        const ghInput = document.getElementById("modal-github-token-input");
+        if (ghInput && window.AttendanceSync) {
+            ghInput.value = window.AttendanceSync.getGitHubToken() || "";
         }
     }
 }
@@ -3186,6 +3186,27 @@ function closeGitHubSyncModal(event) {
     if (event && event.target !== document.getElementById("github-sync-modal-overlay") && !event.target.classList.contains("modal-close-btn") && event.target.tagName !== "BUTTON") return;
     const modal = document.getElementById("github-sync-modal-overlay");
     if (modal) modal.style.display = "none";
+}
+
+function saveGoogleDriveUrlFromModal() {
+    const input = document.getElementById("modal-gdrive-url-input");
+    if (!input || !window.AttendanceSync) return;
+    const url = input.value.trim();
+    window.AttendanceSync.setGoogleDriveUrl(url);
+    alert(url ? "✅ Google Drive & Sheets Webhook URL saved successfully!" : "Google Drive URL cleared.");
+    testGoogleDriveConnectionModal();
+}
+
+async function testGoogleDriveConnectionModal() {
+    if (!window.AttendanceSync) return;
+    const statusDiv = document.getElementById("modal-gdrive-status");
+    if (statusDiv) statusDiv.textContent = "Testing connection to Google Drive...";
+    const res = await window.AttendanceSync.testConnection();
+    if (statusDiv) {
+        statusDiv.textContent = (res.success ? "✅ " : "❌ ") + res.message;
+        statusDiv.style.color = res.success ? "var(--success-color)" : "var(--danger-color)";
+    }
+    alert((res.success ? "✅ " : "❌ ") + res.message);
 }
 
 function saveGitHubTokenFromModal() {
@@ -3207,4 +3228,30 @@ async function testGitHubSyncConnectionModal() {
         statusDiv.style.color = res.success ? "var(--success-color)" : "var(--danger-color)";
     }
     alert((res.success ? "✅ " : "❌ ") + res.message);
+}
+
+async function forceSyncFromCloud() {
+    if (!window.AttendanceSync) return;
+    try {
+        const shared = await window.AttendanceSync.load();
+        if (shared) {
+            applyPersistedState(shared, false);
+            renderList();
+            alert("✅ Successfully pulled latest attendance from Cloud!");
+        } else {
+            alert("No remote state found or repository is empty.");
+        }
+    } catch (e) {
+        alert("Could not load from Cloud: " + e.message);
+    }
+}
+
+async function forcePushToCloud() {
+    if (!window.AttendanceSync) return;
+    try {
+        await window.AttendanceSync.forceSync(getSharedPersistedState());
+        alert("✅ Push initiated to Cloud (Google Drive / GitHub)!");
+    } catch (e) {
+        alert("Push failed: " + e.message);
+    }
 }

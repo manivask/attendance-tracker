@@ -1,16 +1,23 @@
-// TBTA Attendance Tracker - Shared Cloud & GitHub Sync Configuration
-// Mode "github": Automatically commits attendance updates to GitHub repo and loads across all devices.
+// TBTA Attendance Tracker - Shared Cloud & Sync Configuration
+// Mode "google_drive": Direct Google Sheets & Google Drive Live Sync (Recommended - Zero tokens needed for teachers!)
+// Mode "github": Automatically commits attendance updates to GitHub repo.
 window.ATTENDANCE_SYNC_CONFIG = window.ATTENDANCE_SYNC_CONFIG || {
-    mode: "github", // "github" or "custom_api"
+    // Set to "google_drive" or "github"
+    mode: "google_drive",
+
+    // Google Sheets & Google Drive Webhook URL (from Google Apps Script Deployment)
+    // Teachers on any phone or laptop can save & sync without needing a login or token!
+    googleDriveUrl: "",
+
+    // GitHub Sync Configuration
     github: {
         owner: "manivask",
         repo: "attendance-tracker",
         branch: "main",
         filePath: "data/attendance-state.json",
-        // Personal Access Token (Fine-grained with contents:read/write or classic with repo scope)
-        // You can leave this blank here and configure it securely in Admin > System Tools > GitHub Sync Settings
         token: ""
     },
+
     // Optional custom backend (server.py)
     apiUrl: "",
     apiToken: ""

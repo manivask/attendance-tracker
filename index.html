@@ -102,85 +102,57 @@
         </div>
     </div>
 
-    <!-- iPhone & Mobile Access Guide Modal -->
-    <div id="iphone-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeIphoneGuideModal(event)">
-        <div class="student-modal-card" style="max-width: 540px; text-align: left;" onclick="event.stopPropagation()">
-            <button class="modal-close-btn" onclick="closeIphoneGuideModal(event)">✕</button>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                <span style="font-size: 2.2rem;">📱</span>
-                <div>
-                    <h2 style="margin: 0; font-size: 1.3rem;">iPhone &amp; Universal Web Access</h2>
-                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Access TBTA Portal from any iPhone, Android, or PC</p>
-                </div>
-            </div>
-
-            <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
-                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 6px;">🔗 DIRECT WEB LINK FOR TEACHERS &amp; ADMIN:</label>
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="web-portal-url" readonly value="https://manivask.github.io/attendance-tracker/" style="flex: 1; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--accent-color); font-weight: 600; font-size: 0.9rem;">
-                    <button class="btn btn-primary" onclick="copyWebPortalLink()" id="btn-copy-link" style="padding: 8px 14px; font-size: 0.85rem;">📋 Copy</button>
-                </div>
-                <div id="copy-success-msg" style="display:none; color: var(--success-color); font-size: 0.8rem; margin-top: 6px; font-weight: 600;">✅ Link copied to clipboard!</div>
-            </div>
-
-            <div style="margin-bottom: 16px;">
-                <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">🍎 How to install on iPhone (Safari):</h4>
-                <ol style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
-                    <li>Open the link above in <strong>Safari</strong> on your iPhone.</li>
-                    <li>Tap the <strong>Share</strong> button (box with upward arrow at bottom).</li>
-                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong> (➕).</li>
-                    <li>Tap <strong>"Add"</strong> in top right. The TBTA Portal will now work like a native iPhone app!</li>
-                </ol>
-            </div>
-
-            <div style="margin-bottom: 16px;">
-                <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">🤖 How to install on Android (Chrome):</h4>
-                <ol style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
-                    <li>Open the link in <strong>Chrome</strong> or install the provided Android APK.</li>
-                    <li>Tap the 3 dots menu (⋮) &gt; <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
-                </ol>
-            </div>
-
-            <div style="text-align: right;">
-                <button class="btn btn-secondary" onclick="closeIphoneGuideModal(event)">Got it</button>
-            </div>
-        </div>
-    </div>
-
-        <!-- Cloud & GitHub Sync Modal -->
+    <!-- Cloud & Sync Modal -->
+        <!-- Cloud & Sync Modal (Google Drive, Google Sheets, GitHub) -->
     <div id="github-sync-modal-overlay" class="student-modal-overlay" style="display:none;" onclick="closeGitHubSyncModal(event)">
-        <div class="student-modal-card" style="max-width: 560px; text-align: left;" onclick="event.stopPropagation()">
+        <div class="student-modal-card" style="max-width: 580px; text-align: left;" onclick="event.stopPropagation()">
             <button class="modal-close-btn" onclick="closeGitHubSyncModal(event)">✕</button>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                 <span style="font-size: 2.2rem;">☁️</span>
                 <div>
-                    <h2 style="margin: 0; font-size: 1.3rem;">GitHub Live Cloud Sync</h2>
-                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Automatic live multi-teacher sync &amp; GitHub commits</p>
+                    <h2 style="margin: 0; font-size: 1.3rem;">Live Cloud &amp; Google Drive Sync</h2>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">Connect to Google Drive &amp; Sheets or GitHub</p>
                 </div>
             </div>
 
-            <p style="font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary); margin-bottom: 16px;">
-                When teachers submit attendance (e.g. Nilai 1, Nilai 2), records are automatically merged and committed to the school's GitHub repository (<code>manivask/attendance-tracker</code>) and shared across all devices in real time.
-            </p>
-
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">🔑 GitHub Personal Access Token (PAT):</label>
-                <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-                    <input type="password" id="modal-github-token-input" placeholder="ghp_... or github_pat_..." style="flex: 1; min-width: 220px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 0.9rem;">
-                    <button class="btn btn-primary" onclick="saveGitHubTokenFromModal()" style="padding: 10px 16px; font-weight: 600;">💾 Save Token</button>
-                    <button class="btn btn-secondary" onclick="testGitHubSyncConnectionModal()" style="padding: 10px 14px;">🧪 Test</button>
+            <!-- Tab 1: Google Drive / Google Sheets (Recommended) -->
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="color: var(--success-color); font-size: 0.95rem;">📊 Google Drive / Google Sheets (Recommended)</strong>
+                    <span style="font-size: 0.75rem; background: var(--success-color); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 700;">Zero Tokens for Teachers</span>
                 </div>
-                <div id="modal-github-token-status" style="font-size: 0.82rem; color: var(--text-muted);">
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 10px 0; line-height: 1.4;">
+                    Paste your Google Apps Script Web App URL below to automatically save and sync all attendance directly into your school's Google Sheet &amp; Google Drive:
+                </p>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <input type="text" id="modal-gdrive-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="flex: 1; min-width: 220px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.85rem;">
+                    <button class="btn btn-primary" onclick="saveGoogleDriveUrlFromModal()" style="background: var(--success-color); border-color: var(--success-color); padding: 10px 14px; font-weight: 600;">💾 Save URL</button>
+                    <button class="btn btn-secondary" onclick="testGoogleDriveConnectionModal()" style="padding: 10px 12px;">🧪 Test</button>
+                </div>
+                <div id="modal-gdrive-status" style="font-size: 0.8rem; color: var(--text-muted);">
+                    See <code>google_apps_script_setup.js</code> in the repo for the 1-minute setup code.
+                </div>
+            </div>
+
+            <!-- Tab 2: GitHub Direct Commit -->
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 16px;">
+                <strong style="font-size: 0.9rem; display: block; margin-bottom: 6px;">🐙 GitHub Repository Sync (Optional)</strong>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <input type="password" id="modal-github-token-input" placeholder="ghp_... or github_pat_..." style="flex: 1; min-width: 220px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: monospace; font-size: 0.85rem;">
+                    <button class="btn btn-secondary" onclick="saveGitHubTokenFromModal()" style="padding: 10px 14px; font-weight: 600;">💾 Save Token</button>
+                    <button class="btn btn-secondary" onclick="testGitHubSyncConnectionModal()" style="padding: 10px 12px;">🧪 Test</button>
+                </div>
+                <div id="modal-github-token-status" style="font-size: 0.8rem; color: var(--text-muted);">
                     Requires <code>contents:write</code> permission on repository <code>manivask/attendance-tracker</code>.
                 </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
-                <button class="btn btn-secondary" onclick="forceSyncFromGitHub()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
-                    ⬇️ Pull Latest from GitHub
+                <button class="btn btn-secondary" onclick="forceSyncFromCloud()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
+                    ⬇️ Pull Latest Attendance Now
                 </button>
-                <button class="btn btn-secondary" onclick="forcePushToGitHub()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
-                    ⬆️ Push Local Data to GitHub
+                <button class="btn btn-secondary" onclick="forcePushToCloud()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
+                    ⬆️ Push All Local Data Now
                 </button>
             </div>
 
@@ -236,20 +208,12 @@
             </div>
             
             <div class="header-right">
-                <button class="btn btn-secondary" onclick="openIphoneGuideModal()" title="iPhone &amp; Web Link" style="font-size: 0.85rem; padding: 8px 12px; border-radius: 8px; font-weight: 600;">📱 iPhone Link</button>
-                <div class="sync-status-badge" id="sync-status-badge" title="Cloud &amp; GitHub Sync Status (Click to configure)" onclick="openGitHubSyncModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; background: rgba(59, 130, 246, 0.12); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.3);">
+                <div class="sync-status-badge" id="sync-status-badge" title="Cloud Sync Status (Click to configure)" onclick="openGitHubSyncModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer; background: rgba(59, 130, 246, 0.12); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.3);">
                     <span class="sync-dot" id="sync-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-color); display: inline-block;"></span>
-                    <span id="sync-text">☁️ GitHub Sync: Ready</span>
-                </div>
-                <div class="time-window-status" id="time-window-status">
-                    <div class="status-indicator"></div>
-                    <div class="status-details">
-                        <span class="status-title" id="status-title">Checking System Time...</span>
-                        <span class="status-time" id="status-time">--:--</span>
-                    </div>
+                    <span id="sync-text">☁️ Cloud Sync: Ready</span>
                 </div>
                 <button class="btn btn-secondary" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="font-size: 1.15rem; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 38px; line-height: 1;">🌙</button>
-                <button class="btn btn-secondary btn-logout" onclick="lockAppAccess()">🔒 Logout</button>
+                <button class="btn btn-secondary btn-logout"  onclick="lockAppAccess()">🔒 Logout</button>
             </div>
         </header>
 
@@ -274,12 +238,7 @@
 
             <!-- Multi-Location Selector and Tabs Control -->
             <section class="location-and-tabs-bar">
-                <div class="location-picker">
-                    <label for="location-select">📍 School Location:</label>
-                    <select id="location-select" onchange="handleLocationChange()">
-                        <option value="Riverview">Riverview</option>
-                    </select>
-                </div>
+<div class="location-picker" style="display: none;"><select id="location-select"><option value="Riverview">Riverview</option></select></div>
                 
                 <div class="class-picker" id="main-class-picker" style="display: none; margin-left: 16px;">
                     <label for="main-class-select" style="font-weight: 600;">🎓 Class / Grade:</label>
@@ -598,8 +557,8 @@
 
 
     <script src="chart.js"></script>
-    <script src="sync-config.js?v=11"></script>
-    <script src="sync.js?v=11"></script>
-    <script src="app.js?v=11"></script>
+    <script src="sync-config.js?v=12"></script>
+    <script src="sync.js?v=12"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
