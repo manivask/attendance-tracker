@@ -2497,6 +2497,10 @@
         "T022": "present",
         "T023": "present",
         "T024": "present"
+      },
+      "2026-10-02": {
+        "T005": "present",
+        "T006": "present"
       }
     },
     "Students": {
@@ -3312,6 +3316,17 @@
         "S036": "absent",
         "S042": "absent",
         "S039": "absent"
+      },
+      "2026-10-02": {
+        "S025": "present",
+        "S026": "present",
+        "S027": "present",
+        "S028": "present",
+        "S029": "present",
+        "S030": "present",
+        "S031": "present",
+        "S032": "present",
+        "S033": "present"
       }
     }
   },
@@ -3328,6 +3343,8 @@
   },
   "customRosterSaved": false,
   "logs": [
+    "[10/2/2026, 8:01:34 PM EST] Initialized default status 'Present' for unmarked students & teachers of Nilai 1 at Riverview",
+    "[10/2/2026, 8:01:34 PM EST] Access Authorized: Teacher logged in at Riverview",
     "[10/2/2026, 7:24:25 PM EST] Access Authorized: Administrator logged in at Riverview",
     "[10/2/2026, 7:24:21 PM EST] Access Revoked: Administrator logged out"
   ],
@@ -3375,5 +3392,5 @@
   ],
   "leadership": [],
   "version": "1.0",
-  "updatedAt": "2026-10-03T00:01:34.457Z"
+  "updatedAt": "2026-10-03T00:01:35.813Z"
 }
