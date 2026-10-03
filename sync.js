@@ -138,9 +138,17 @@
 
         try {
             const payload = {
-                ...localState,
+                version: "1.0",
+                activeDate: localState.activeDate,
                 updatedAt: new Date().toISOString(),
-                updatedBy: (window.appState && window.appState.currentUserRole) ? window.appState.currentUserRole.name : "Teacher"
+                updatedBy: (window.appState && window.appState.currentUserRole) ? `${window.appState.currentUserRole.name} (${window.appState.currentUserRole.role || 'Teacher'})` : "Teacher",
+                attendance: localState.attendance || { Teachers: {}, Students: {} },
+                homework: localState.homework || {},
+                tests: localState.tests || {},
+                lockedDates: localState.lockedDates || [],
+                attestations: localState.attestations || {},
+                students: (localState.students || []).map(s => ({ ID: s.ID, Name: s.Name, Grade: s.Grade, Location: s.Location })),
+                teachers: (localState.teachers || []).map(t => ({ ID: t.ID, Name: t.Name, "Class Assignment": t["Class Assignment"], Location: t.Location }))
             };
 
             const response = await fetch(gUrl, {

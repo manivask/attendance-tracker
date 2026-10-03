@@ -1,15 +1,14 @@
 // TBTA Attendance Tracker - Shared Cloud & Sync Configuration
-// Mode "google_drive": Direct Google Sheets & Google Drive Live Sync (Recommended - Zero tokens needed for teachers!)
-// Mode "github": Automatically commits attendance updates to GitHub repo.
+// Mode "google_drive": Direct Google Sheets & Google Drive Live Sync (Zero tokens needed for teachers!)
 window.ATTENDANCE_SYNC_CONFIG = window.ATTENDANCE_SYNC_CONFIG || {
     // Set to "google_drive" or "github"
     mode: "google_drive",
 
-    // Google Sheets & Google Drive Webhook URL (from Google Apps Script Deployment)
-    // Teachers on any phone or laptop can save & sync without needing a login or token!
-    googleDriveUrl: "",
+    // Live Google Sheets & Google Drive Webhook URL
+    // Works automatically across all teachers' phones and laptops without tokens or logins!
+    googleDriveUrl: "https://script.google.com/macros/s/AKfycbw_v-oyFIx4VWVsdkfTL7x0iykVJ34uK6HnzBZP0bxyenYBWX301vkN2c97ixSBDlW8ZA/exec",
 
-    // GitHub Sync Configuration
+    // GitHub Sync Configuration (Optional fallback)
     github: {
         owner: "manivask",
         repo: "attendance-tracker",
