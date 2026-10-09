@@ -482,44 +482,10 @@ function closeStudentModal(event) {
     setTimeout(() => { modal.style.display = "none"; }, 300);
 }
 
-// Function to auto-populate unmarked class students to Present
+// Function to auto-populate unmarked class students
 function initializeDefaultAttendanceForClass() {
-    if (!appState.currentUserRole || appState.currentUserRole.role !== "Teacher") return;
-    const activeDate = getActiveDateString();
-    const loc = appState.currentUserRole.location;
-    const grade = appState.currentUserRole.grade;
-
-    if (!appState.attendance.Students[activeDate]) {
-        appState.attendance.Students[activeDate] = {};
-    }
-    if (!appState.attendance.Teachers[activeDate]) {
-        appState.attendance.Teachers[activeDate] = {};
-    }
-
-    let initializedAny = false;
-    appState.students.forEach(s => {
-        if (s.Location === loc && s.Grade === grade) {
-            if (!appState.attendance.Students[activeDate][s.ID]) {
-                appState.attendance.Students[activeDate][s.ID] = "present";
-                initializedAny = true;
-            }
-        }
-    });
-
-    appState.teachers.forEach(t => {
-        if (t.Location === loc && t["Class Assignment"] === grade) {
-            if (!appState.attendance.Teachers[activeDate][t.ID]) {
-                appState.attendance.Teachers[activeDate][t.ID] = "present";
-                initializedAny = true;
-            }
-        }
-    });
-
-    if (initializedAny) {
-        logActivity(`Initialized default status 'Present' for unmarked students & teachers of ${grade} at ${loc}`);
-        saveStateToLocalStorage();
-        renderList();
-    }
+    // Non-destructive: Do not auto-mutate or auto-push 'present' to cloud on navigation.
+    // Teachers/admins mark attendance explicitly (P, L, A).
 }
 
 // Auto-populate unmarked homework for current class / active date
@@ -548,7 +514,6 @@ function initializeDefaultHomeworkForClass() {
 
     if (initializedAny) {
         logActivity(`Initialized default Homework scores (Y) for ${grade || "all classes"} at ${loc}`);
-        saveStateToLocalStorage();
     }
 }
 
@@ -2668,18 +2633,46 @@ function loadStateFromLocalStorage() {
 }
 
 function applyPersistedState(parsed, includeSession) {
-    if (parsed.teachers) appState.teachers = parsed.teachers;
-    if (parsed.students) appState.students = parsed.students;
-    if (parsed.attendance) appState.attendance = parsed.attendance;
-    if (parsed.homework) appState.homework = parsed.homework;
-    if (parsed.tests) appState.tests = parsed.tests;
+    if (parsed.teachers && Array.isArray(parsed.teachers) && parsed.teachers.length > 0) appState.teachers = parsed.teachers;
+    if (parsed.students && Array.isArray(parsed.students) && parsed.students.length > 0) appState.students = parsed.students;
+    if (parsed.attendance) {
+        if (!appState.attendance) appState.attendance = { Teachers: {}, Students: {} };
+        if (!appState.attendance.Students) appState.attendance.Students = {};
+        if (!appState.attendance.Teachers) appState.attendance.Teachers = {};
+        if (parsed.attendance.Students) {
+            for (const [dt, map] of Object.entries(parsed.attendance.Students)) {
+                if (!appState.attendance.Students[dt]) appState.attendance.Students[dt] = {};
+                Object.assign(appState.attendance.Students[dt], map);
+            }
+        }
+        if (parsed.attendance.Teachers) {
+            for (const [dt, map] of Object.entries(parsed.attendance.Teachers)) {
+                if (!appState.attendance.Teachers[dt]) appState.attendance.Teachers[dt] = {};
+                Object.assign(appState.attendance.Teachers[dt], map);
+            }
+        }
+    }
+    if (parsed.homework) {
+        if (!appState.homework) appState.homework = {};
+        for (const [dt, map] of Object.entries(parsed.homework)) {
+            if (!appState.homework[dt]) appState.homework[dt] = {};
+            Object.assign(appState.homework[dt], map);
+        }
+    }
+    if (parsed.tests) {
+        if (!appState.tests) appState.tests = {};
+        for (const [dt, map] of Object.entries(parsed.tests)) {
+            if (!appState.tests[dt]) appState.tests[dt] = {};
+            Object.assign(appState.tests[dt], map);
+        }
+    }
     if (parsed.currentMode) appState.currentMode = parsed.currentMode;
     if (parsed.activeDate) appState.activeDate = parsed.activeDate;
-    if (parsed.lockedDates) appState.lockedDates = parsed.lockedDates;
-    if (parsed.attestations) appState.attestations = parsed.attestations;
+    if (parsed.lockedDates && Array.isArray(parsed.lockedDates)) appState.lockedDates = parsed.lockedDates;
+    if (parsed.attestations) appState.attestations = Object.assign({}, appState.attestations, parsed.attestations);
     if (parsed.customRosterSaved) appState.customRosterSaved = true;
     if (includeSession && parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;
-    if (parsed.logs) appState.logs = parsed.logs.slice(0, 250);
+    if (parsed.logs && Array.isArray(parsed.logs)) appState.logs = parsed.logs.slice(0, 250);
     if (parsed.committee?.length) {
         COMMITTEE_ROSTER.length = 0;
         COMMITTEE_ROSTER.push(...parsed.committee);
