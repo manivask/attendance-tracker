@@ -107,15 +107,26 @@ const activeUserRoleSpan = document.getElementById("active-user-role");
 document.addEventListener("DOMContentLoaded", async () => {
     loadStateFromLocalStorage();
     if (!appState.activeDate) appState.activeDate = getDefaultWeeklyDate();
+
+    // 1. Load default baseline workbook roster
+    try {
+        await loadDefaultWorkbook();
+    } catch(e) {
+        console.warn("Could not load default workbook:", e);
+    }
+
+    // 2. Load latest cloud state from Google Drive & Google Sheets
     if (window.AttendanceSync?.enabled()) {
         try {
             const sharedState = await window.AttendanceSync.load();
-            if (sharedState) applyPersistedState(sharedState, false);
+            if (sharedState) {
+                applyPersistedState(sharedState, false);
+            }
         } catch (error) {
             console.warn("Shared data service unavailable; using this device's offline copy.", error);
         }
     }
-    loadDefaultWorkbook();
+
     checkAccessGate();
     setupDragAndDrop();
 
@@ -123,6 +134,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateDateTimeAndRules();
 
     renderList();
+});
+
+// React to live background updates from Google Drive
+window.addEventListener("attendance-remote-updated", () => {
+    renderList();
+    if (appState.currentTab === "Dashboard") {
+        renderDashboard();
+    }
 });
 
 // Access Gate Authorization Checking
@@ -1097,10 +1116,10 @@ function handleExcelFile(file) {
 function loadDefaultWorkbook() {
     if (typeof XLSX === "undefined") {
         console.warn("XLSX library not loaded, skipping default workbook");
-        return;
+        return Promise.resolve();
     }
-    loadMasterList().then(() => {
-        fetch(encodeURI("TBTA-2026-2027- RHS-Student_Attendance.xlsx"))
+    return loadMasterList().then(() => {
+        return fetch(encodeURI("TBTA-2026-2027- RHS-Student_Attendance.xlsx"))
             .then(response => {
                 if (!response.ok) throw new Error("Local sheet not found");
                 return response.arrayBuffer();
@@ -1111,8 +1130,6 @@ function loadDefaultWorkbook() {
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 appState.workbook = workbook;
 
-                // v8 is the active storage key. Checking only v7 here rebuilt
-                // the workbook and discarded attendance saved by current builds.
                 const parsed = getPersistedState();
 
                 // If admin explicitly customized roster, keep customized roster
@@ -1182,7 +1199,6 @@ function loadDefaultWorkbook() {
                     }
                 }
 
-                saveStateToLocalStorage();
                 renderList();
             })
             .catch(err => {
@@ -1436,8 +1452,9 @@ function getCellDateStr(cell) {
 }
 
 function parseAttendanceFromWorkbook(workbook) {
-    // Reset attendance
-    appState.attendance = { Teachers: {}, Students: {} };
+    if (!appState.attendance) appState.attendance = { Teachers: {}, Students: {} };
+    if (!appState.attendance.Teachers) appState.attendance.Teachers = {};
+    if (!appState.attendance.Students) appState.attendance.Students = {};
 
     const allSheets = ["illanthalir", "Mazhalai", "Nilai-1","Nilai-2","Nilai-3","Nilai-4","Nilai-5","Nilai-6","Nilai-7","Nilai-8"];
 
@@ -1490,10 +1507,14 @@ function parseAttendanceFromWorkbook(workbook) {
                     if (statusVal) {
                         if (student) {
                             if (!appState.attendance.Students[dateStr]) appState.attendance.Students[dateStr] = {};
-                            appState.attendance.Students[dateStr][student.ID] = statusVal;
+                            if (!appState.attendance.Students[dateStr][student.ID]) {
+                                appState.attendance.Students[dateStr][student.ID] = statusVal;
+                            }
                         } else if (teacher) {
                             if (!appState.attendance.Teachers[dateStr]) appState.attendance.Teachers[dateStr] = {};
-                            appState.attendance.Teachers[dateStr][teacher.ID] = statusVal;
+                            if (!appState.attendance.Teachers[dateStr][teacher.ID]) {
+                                appState.attendance.Teachers[dateStr][teacher.ID] = statusVal;
+                            }
                         }
                     }
                 }

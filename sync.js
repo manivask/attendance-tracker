@@ -1,7 +1,8 @@
 /**
  * TBTA Attendance Tracker - Google Sheets & Google Drive Live Cloud Sync Client
- * 1. Automatic Live Sync with Google Sheets & Drive Webhook (Zero tokens required)
- * 2. Offline-first local storage fallback
+ * 1. Automatic Live Realtime Sync with Google Sheets & Drive Webhook (Zero tokens required)
+ * 2. Background multi-device polling & live state synchronization
+ * 3. Offline-first local storage fallback with 3-way merge
  */
 (function () {
     const config = window.ATTENDANCE_SYNC_CONFIG || {};
@@ -13,6 +14,7 @@
     let lastSyncStatus = "ready";
     let lastSyncMessage = "";
     let lastSyncTime = null;
+    let pollTimer = null;
 
     function getGoogleDriveUrl() {
         return (config.googleDriveUrl || "").trim() ||
@@ -125,7 +127,7 @@
             }
 
             baseState = clone(localState);
-            dispatchStatus("saved", "☁️ Successfully synced to Google Drive & Sheets!");
+            dispatchStatus("saved", "☁️ Synced with Google Drive & Sheets");
             return true;
         } catch (e) {
             console.error("Google Drive sync failed", e);
@@ -144,6 +146,96 @@
             if (data && data.state) {
                 baseState = clone(data.state);
                 dispatchStatus("ready", "☁️ Loaded latest attendance from Google Drive & Sheets");
+
+                // Live Merge into active appState if running
+                if (window.appState) {
+                    let changed = false;
+                    const remoteAtt = data.state.attendance || {};
+
+                    if (!window.appState.attendance) window.appState.attendance = { Teachers: {}, Students: {} };
+                    if (!window.appState.attendance.Students) window.appState.attendance.Students = {};
+                    if (!window.appState.attendance.Teachers) window.appState.attendance.Teachers = {};
+
+                    // Merge Students Attendance
+                    if (remoteAtt.Students) {
+                        for (const [dt, map] of Object.entries(remoteAtt.Students)) {
+                            if (!window.appState.attendance.Students[dt]) window.appState.attendance.Students[dt] = {};
+                            for (const [sId, st] of Object.entries(map)) {
+                                // Do not overwrite if local has un-sent pending change
+                                const pendingVal = pending?.attendance?.Students?.[dt]?.[sId];
+                                const targetVal = pendingVal !== undefined ? pendingVal : st;
+                                if (window.appState.attendance.Students[dt][sId] !== targetVal) {
+                                    window.appState.attendance.Students[dt][sId] = targetVal;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+
+                    // Merge Teachers Attendance
+                    if (remoteAtt.Teachers) {
+                        for (const [dt, map] of Object.entries(remoteAtt.Teachers)) {
+                            if (!window.appState.attendance.Teachers[dt]) window.appState.attendance.Teachers[dt] = {};
+                            for (const [tId, st] of Object.entries(map)) {
+                                const pendingVal = pending?.attendance?.Teachers?.[dt]?.[tId];
+                                const targetVal = pendingVal !== undefined ? pendingVal : st;
+                                if (window.appState.attendance.Teachers[dt][tId] !== targetVal) {
+                                    window.appState.attendance.Teachers[dt][tId] = targetVal;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+
+                    // Merge Homework
+                    if (data.state.homework) {
+                        if (!window.appState.homework) window.appState.homework = {};
+                        for (const [dt, map] of Object.entries(data.state.homework)) {
+                            if (!window.appState.homework[dt]) window.appState.homework[dt] = {};
+                            for (const [sId, hw] of Object.entries(map)) {
+                                const pendingVal = pending?.homework?.[dt]?.[sId];
+                                const targetVal = pendingVal !== undefined ? pendingVal : hw;
+                                if (JSON.stringify(window.appState.homework[dt][sId]) !== JSON.stringify(targetVal)) {
+                                    window.appState.homework[dt][sId] = targetVal;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+
+                    // Merge Tests
+                    if (data.state.tests) {
+                        if (!window.appState.tests) window.appState.tests = {};
+                        for (const [dt, map] of Object.entries(data.state.tests)) {
+                            if (!window.appState.tests[dt]) window.appState.tests[dt] = {};
+                            for (const [sId, ts] of Object.entries(map)) {
+                                const pendingVal = pending?.tests?.[dt]?.[sId];
+                                const targetVal = pendingVal !== undefined ? pendingVal : ts;
+                                if (JSON.stringify(window.appState.tests[dt][sId]) !== JSON.stringify(targetVal)) {
+                                    window.appState.tests[dt][sId] = targetVal;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (data.state.lockedDates && Array.isArray(data.state.lockedDates)) {
+                        window.appState.lockedDates = data.state.lockedDates;
+                    }
+                    if (data.state.attestations) {
+                        window.appState.attestations = Object.assign({}, window.appState.attestations, data.state.attestations);
+                    }
+
+                    if (changed) {
+                        try {
+                            if (typeof window.getPersistedState === "function") {
+                                localStorage.setItem("attendance_tracker_state_v8", JSON.stringify(window.getPersistedState()));
+                            }
+                        } catch(e) {}
+                        window.dispatchEvent(new CustomEvent("attendance-remote-updated", { detail: data.state }));
+                    }
+                }
+
                 return data.state;
             }
         } catch (e) {
@@ -170,6 +262,33 @@
             }
         }
     }
+
+    // Schedule background polling for multi-device realtime updates
+    function schedulePoll(delayMs = 8000) {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(async () => {
+            if (enabled() && !isSending && !pending && document.visibilityState !== "hidden") {
+                await loadGoogleDriveState();
+            }
+            schedulePoll(8000);
+        }, delayMs);
+    }
+    schedulePoll(4000);
+
+    // Immediate sync on tab visibility / device unlock (e.g. iPhone wake up)
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && enabled() && !isSending) {
+            loadGoogleDriveState();
+            schedulePoll(8000);
+        }
+    });
+
+    window.addEventListener("focus", () => {
+        if (enabled() && !isSending) {
+            loadGoogleDriveState();
+            schedulePoll(8000);
+        }
+    });
 
     // Public API
     window.AttendanceSync = {
@@ -209,7 +328,7 @@
             if (!enabled()) return;
             pending = clone(state);
             clearTimeout(timer);
-            timer = setTimeout(flush, 600);
+            timer = setTimeout(flush, 500);
         },
         async forceSync(state) {
             pending = clone(state);
