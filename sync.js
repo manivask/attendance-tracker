@@ -100,12 +100,44 @@
         dispatchStatus("saving", "⏳ Syncing attendance to Google Drive & Sheets...");
 
         try {
+            // Non-destructive merge with baseState/remote so individual class updates never wipe other classes
+            const remote = baseState || {};
+            const mergedAttendance = { Teachers: {}, Students: {} };
+
+            if (remote.attendance) {
+                if (remote.attendance.Students) {
+                    for (const [dt, map] of Object.entries(remote.attendance.Students)) {
+                        mergedAttendance.Students[dt] = Object.assign({}, map);
+                    }
+                }
+                if (remote.attendance.Teachers) {
+                    for (const [dt, map] of Object.entries(remote.attendance.Teachers)) {
+                        mergedAttendance.Teachers[dt] = Object.assign({}, map);
+                    }
+                }
+            }
+
+            if (localState.attendance) {
+                if (localState.attendance.Students) {
+                    for (const [dt, map] of Object.entries(localState.attendance.Students)) {
+                        if (!mergedAttendance.Students[dt]) mergedAttendance.Students[dt] = {};
+                        Object.assign(mergedAttendance.Students[dt], map);
+                    }
+                }
+                if (localState.attendance.Teachers) {
+                    for (const [dt, map] of Object.entries(localState.attendance.Teachers)) {
+                        if (!mergedAttendance.Teachers[dt]) mergedAttendance.Teachers[dt] = {};
+                        Object.assign(mergedAttendance.Teachers[dt], map);
+                    }
+                }
+            }
+
             const payload = {
                 version: "1.0",
                 activeDate: localState.activeDate,
                 updatedAt: new Date().toISOString(),
                 updatedBy: (window.appState && window.appState.currentUserRole) ? `${window.appState.currentUserRole.name} (${window.appState.currentUserRole.role || 'Teacher'})` : "Teacher",
-                attendance: localState.attendance || { Teachers: {}, Students: {} },
+                attendance: mergedAttendance,
                 homework: localState.homework || {},
                 tests: localState.tests || {},
                 lockedDates: localState.lockedDates || [],
