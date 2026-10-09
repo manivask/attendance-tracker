@@ -827,6 +827,12 @@ body.dark-mode .attendance-table tr:hover {
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
 }
 
+.status-opt.late.active {
+    background-color: var(--warning-color);
+    color: white;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
+
 .status-opt.absent.active {
     background-color: var(--danger-color);
     color: white;
@@ -845,6 +851,11 @@ body.dark-mode .attendance-table tr:hover {
 .locked-cell.present {
     background-color: var(--success-bg);
     color: var(--success-color);
+}
+
+.locked-cell.late {
+    background-color: var(--warning-bg);
+    color: var(--warning-color);
 }
 
 .locked-cell.absent {

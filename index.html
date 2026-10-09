@@ -307,8 +307,9 @@
                 <div class="filters" id="status-filters-group">
                     <button class="filter-btn active" onclick="setFilter('all')">All</button>
                     <button class="filter-btn text-success" onclick="setFilter('present')">Present</button>
+                    <button class="filter-btn text-warning" onclick="setFilter('late')">Late</button>
                     <button class="filter-btn text-danger" onclick="setFilter('absent')">Absent</button>
-                    <button class="filter-btn text-warning" onclick="setFilter('unmarked')">Unmarked</button>
+                    <button class="filter-btn text-muted" onclick="setFilter('unmarked')">Unmarked</button>
                 </div>
                 <!-- Quick actions for Homework mode -->
                 <div class="homework-actions" id="homework-actions-group" style="display:none; gap: 8px; align-items: center;">
@@ -331,8 +332,9 @@
                     <!-- Attendance Stats -->
                     <div class="selection-stats" id="selection-stats-container">
                         <span class="stat-tag tag-success">Present: <strong id="stat-present">0</strong></span>
+                        <span class="stat-tag tag-warning">Late: <strong id="stat-late">0</strong></span>
                         <span class="stat-tag tag-danger">Absent: <strong id="stat-absent">0</strong></span>
-                        <span class="stat-tag tag-warning">Unmarked: <strong id="stat-unmarked">90</strong></span>
+                        <span class="stat-tag tag-warning" style="background: rgba(148, 163, 184, 0.15); color: var(--text-secondary);">Unmarked: <strong id="stat-unmarked">90</strong></span>
                     </div>
                     <!-- Homework Stats -->
                     <div class="selection-stats" id="homework-stats-container" style="display:none; gap: 6px;">
@@ -404,7 +406,7 @@
                     </div>
                 </div>
                 
-                <div class="dashboard-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 24px;">
+                <div class="dashboard-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 15px; margin-bottom: 24px;">
                     <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
                         <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Overall Attendance</h4>
                         <strong id="kpi-overall" style="font-size: 28px; color: var(--accent-color); font-family: var(--font-heading);">-</strong>
@@ -414,6 +416,11 @@
                         <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Present Students</h4>
                         <strong id="kpi-present-count" style="font-size: 28px; color: var(--success-color); font-family: var(--font-heading);">0</strong>
                         <div id="kpi-present-pct" style="font-size: 0.8rem; color: var(--success-color); margin-top: 4px;">0%</div>
+                    </div>
+                    <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+                        <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Late Students</h4>
+                        <strong id="kpi-late-count" style="font-size: 28px; color: var(--warning-color); font-family: var(--font-heading);">0</strong>
+                        <div id="kpi-late-pct" style="font-size: 0.8rem; color: var(--warning-color); margin-top: 4px;">0%</div>
                     </div>
                     <div class="stat-box" style="padding: 16px; background: var(--bg-secondary); border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
                         <h4 style="margin:0 0 6px 0; color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Absent Students</h4>

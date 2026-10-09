@@ -89,6 +89,7 @@ const badgeStudents = document.getElementById("badge-students");
 const badgeTeachers = document.getElementById("badge-teachers");
 const badgeCommittee = document.getElementById("badge-committee");
 const statPresent = document.getElementById("stat-present");
+const statLate = document.getElementById("stat-late");
 const statAbsent = document.getElementById("stat-absent");
 const statUnmarked = document.getElementById("stat-unmarked");
 
@@ -381,17 +382,19 @@ function switchStudentModalTab(tab) {
 
 function renderStudentAttendance(student) {
     let present = 0;
+    let late = 0;
     let absent = 0;
     Object.values(appState.attendance?.Students || {}).forEach(day => {
         const status = day?.[student.ID];
         if (status === "present") present++;
-        if (status === "absent") absent++;
+        else if (status === "late") late++;
+        else if (status === "absent") absent++;
     });
     const summary = document.getElementById("student-attendance-summary");
     if (summary) {
-        const total = present + absent;
+        const total = present + late + absent;
         summary.textContent = total
-            ? `${present} present · ${absent} absent · ${((present / total) * 100).toFixed(1)}% attendance`
+            ? `${present} present · ${late} late · ${absent} absent · ${(((present + late) / total) * 100).toFixed(1)}% attendance`
             : "No attendance records have been entered for this student yet.";
     }
     const canvas = document.getElementById("student-attendance-chart");
@@ -400,8 +403,8 @@ function renderStudentAttendance(student) {
     studentAttendanceChart = new Chart(canvas, {
         type: "pie",
         data: {
-            labels: ["Present", "Absent"],
-            datasets: [{ data: [present, absent], backgroundColor: ["#10b981", "#ef4444"], borderColor: ["#ffffff", "#ffffff"], borderWidth: 2 }]
+            labels: ["Present", "Late", "Absent"],
+            datasets: [{ data: [present, late, absent], backgroundColor: ["#10b981", "#f59e0b", "#ef4444"], borderColor: ["#ffffff", "#ffffff", "#ffffff"], borderWidth: 2 }]
         },
         options: {
             responsive: true,
@@ -1483,7 +1486,7 @@ function parseAttendanceFromWorkbook(workbook) {
                 const cell = sheet[cellRef];
                 if (cell && cell.v) {
                     const statusStr = String(cell.v).trim().toUpperCase();
-                    const statusVal = statusStr === "P" ? "present" : statusStr === "A" ? "absent" : "";
+                    const statusVal = statusStr === "P" ? "present" : statusStr === "L" ? "late" : statusStr === "A" ? "absent" : "";
                     if (statusVal) {
                         if (student) {
                             if (!appState.attendance.Students[dateStr]) appState.attendance.Students[dateStr] = {};
@@ -1546,7 +1549,7 @@ function updateWorkbookData() {
                     const colIdx = dateCols[date];
                     if (colIdx !== undefined) {
                         const cellRef = XLSX.utils.encode_cell({ r: r, c: colIdx });
-                        sheet[cellRef] = { t: 's', v: status === "present" ? "P" : status === "absent" ? "A" : "" };
+                        sheet[cellRef] = { t: 's', v: status === "present" ? "P" : status === "late" ? "L" : status === "absent" ? "A" : "" };
                     }
                 });
             } else if (teacher) {
@@ -1555,7 +1558,7 @@ function updateWorkbookData() {
                     const colIdx = dateCols[date];
                     if (colIdx !== undefined) {
                         const cellRef = XLSX.utils.encode_cell({ r: r, c: colIdx });
-                        sheet[cellRef] = { t: 's', v: status === "present" ? "P" : status === "absent" ? "A" : "" };
+                        sheet[cellRef] = { t: 's', v: status === "present" ? "P" : status === "late" ? "L" : status === "absent" ? "A" : "" };
                     }
                 });
             }
@@ -1750,8 +1753,9 @@ function setFilter(filterType) {
         btn.classList.remove("active");
     });
 
-    const targetIdx = filterType === 'all' ? 0 : filterType === 'present' ? 1 : filterType === 'absent' ? 2 : 3;
-    document.querySelectorAll(".filters button")[targetIdx].classList.add("active");
+    const targetIdx = filterType === 'all' ? 0 : filterType === 'present' ? 1 : filterType === 'late' ? 2 : filterType === 'absent' ? 3 : 4;
+    const btns = document.querySelectorAll(".filters button");
+    if (btns[targetIdx]) btns[targetIdx].classList.add("active");
 
     renderList();
 }
@@ -1978,17 +1982,20 @@ function renderList() {
         `;
 
         let presentCount = 0;
+        let lateCount = 0;
         let absentCount = 0;
         let unmarkedCount = 0;
 
         items.forEach(item => {
             const status = appState.attendance[tab][activeDate]?.[item.ID];
             if (status === "present") presentCount++;
+            else if (status === "late") lateCount++;
             else if (status === "absent") absentCount++;
             else unmarkedCount++;
         });
 
         statPresent.textContent = presentCount;
+        if (statLate) statLate.textContent = lateCount;
         statAbsent.textContent = absentCount;
         statUnmarked.textContent = unmarkedCount;
     }
@@ -2055,6 +2062,7 @@ function renderList() {
             const status = appState.attendance[tab][activeDate]?.[item.ID];
 
             if (appState.currentFilter === "present" && status !== "present") return;
+            if (appState.currentFilter === "late" && status !== "late") return;
             if (appState.currentFilter === "absent" && status !== "absent") return;
             if (appState.currentFilter === "unmarked" && status) return;
 
@@ -2071,8 +2079,9 @@ function renderList() {
             } else {
                 statusControlHtml = `
                     <div class="status-selector">
-                        <button class="status-opt present ${status === 'present' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'present')">P</button>
-                        <button class="status-opt absent ${status === 'absent' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'absent')">A</button>
+                        <button type="button" class="status-opt present ${status === 'present' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'present')" title="Present">P</button>
+                        <button type="button" class="status-opt late ${status === 'late' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'late')" title="Late">L</button>
+                        <button type="button" class="status-opt absent ${status === 'absent' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'absent')" title="Absent">A</button>
                     </div>
                 `;
             }
@@ -2226,7 +2235,7 @@ function generateExportWorkbook() {
             }
             fridays.forEach(d => {
                 const st = appState.attendance.Students[d]?.[s.ID];
-                row[d] = st === "present" ? "P" : st === "absent" ? "A" : "";
+                row[d] = st === "present" ? "P" : st === "late" ? "L" : st === "absent" ? "A" : "";
             });
             return row;
         });
@@ -2322,7 +2331,7 @@ function generateExportWorkbook() {
         };
         fridays.forEach(d => {
             const st = appState.attendance.Teachers[d]?.[t.ID];
-            row[d] = st === "present" ? "P" : st === "absent" ? "A" : "";
+            row[d] = st === "present" ? "P" : st === "late" ? "L" : st === "absent" ? "A" : "";
         });
         return row;
     });
@@ -2349,19 +2358,21 @@ function generateExportWorkbook() {
     // 8. Dashboard Summary Sheet
     const summaryData = GRADES.map(g => {
         const classKids = appState.students.filter(s => s.Grade === g);
-        let p = 0, a = 0, u = 0;
+        let p = 0, l = 0, a = 0, u = 0;
         classKids.forEach(s => {
             const st = appState.attendance.Students[activeDate]?.[s.ID];
             if (st === "present") p++;
+            else if (st === "late") l++;
             else if (st === "absent") a++;
             else u++;
         });
-        const pct = classKids.length > 0 ? Math.round((p / classKids.length) * 100) + "%" : "0%";
+        const pct = classKids.length > 0 ? Math.round(((p + l) / classKids.length) * 100) + "%" : "0%";
         return {
             "Grade / Class": g,
             "Room": CLASS_ROOMS[g] || "-",
             "Total Students": classKids.length,
             "Present": p,
+            "Late": l,
             "Absent": a,
             "Unmarked": u,
             "Attendance Rate": pct
@@ -2546,17 +2557,25 @@ All teachers and administrators can now see this class attendance live.`);
         const locStudents = appState.students.filter(s => s.Location === loc);
 
         const pT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "present");
+        const lT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "late");
         const aT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "absent");
         const pS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "present");
+        const lS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "late");
         const aS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "absent");
 
         emailBody += `📍 LOCATION: ${loc}\n`;
         emailBody += `-------------------------------------------\n`;
-        emailBody += `- Teachers: Present: ${pT.length}/${locTeachers.length} | Absent: ${aT.length}/${locTeachers.length}\n`;
+        emailBody += `- Teachers: Present: ${pT.length}/${locTeachers.length} | Late: ${lT.length}/${locTeachers.length} | Absent: ${aT.length}/${locTeachers.length}\n`;
+        if (lT.length > 0) {
+            emailBody += `  Late Teachers: ${lT.map(t => t.Name).join(", ")}\n`;
+        }
         if (aT.length > 0) {
             emailBody += `  Absent Teachers: ${aT.map(t => t.Name).join(", ")}\n`;
         }
-        emailBody += `- Students: Present: ${pS.length}/${locStudents.length} | Absent: ${aS.length}/${locStudents.length}\n`;
+        emailBody += `- Students: Present: ${pS.length}/${locStudents.length} | Late: ${lS.length}/${locStudents.length} | Absent: ${aS.length}/${locStudents.length}\n`;
+        if (lS.length > 0) {
+            emailBody += `  Late Students: ${lS.map(s => s.Name).join(", ")}\n`;
+        }
         if (aS.length > 0) {
             emailBody += `  Absent Students: ${aS.map(s => s.Name).join(", ")}\n`;
         }
@@ -2751,12 +2770,13 @@ function renderDashboard() {
     const teachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation);
 
     let presentCount = 0;
+    let lateCount = 0;
     let absentCount = 0;
     let unmarkedCount = 0;
     const classStats = {};
 
     GRADES.forEach(g => {
-        classStats[g] = { present: 0, absent: 0, unmarked: 0, total: 0 };
+        classStats[g] = { present: 0, late: 0, absent: 0, unmarked: 0, total: 0 };
     });
 
     if (selectedDate === "all") {
@@ -2766,12 +2786,16 @@ function renderDashboard() {
         const dateList = Array.from(allDates);
 
         studentsAtLoc.forEach(s => {
-            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, absent: 0, unmarked: 0, total: 0 };
+            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, late: 0, absent: 0, unmarked: 0, total: 0 };
             dateList.forEach(d => {
                 const st = appState.attendance.Students[d]?.[s.ID];
                 if (st === "present") {
                     presentCount++;
                     classStats[s.Grade].present++;
+                    classStats[s.Grade].total++;
+                } else if (st === "late") {
+                    lateCount++;
+                    classStats[s.Grade].late++;
                     classStats[s.Grade].total++;
                 } else if (st === "absent") {
                     absentCount++;
@@ -2783,13 +2807,16 @@ function renderDashboard() {
     } else {
         // Specific active date
         studentsAtLoc.forEach(s => {
-            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, absent: 0, unmarked: 0, total: 0 };
+            if (!classStats[s.Grade]) classStats[s.Grade] = { present: 0, late: 0, absent: 0, unmarked: 0, total: 0 };
             classStats[s.Grade].total++;
 
             const st = appState.attendance.Students[selectedDate]?.[s.ID];
             if (st === "present") {
                 presentCount++;
                 classStats[s.Grade].present++;
+            } else if (st === "late") {
+                lateCount++;
+                classStats[s.Grade].late++;
             } else if (st === "absent") {
                 absentCount++;
                 classStats[s.Grade].absent++;
@@ -2800,44 +2827,53 @@ function renderDashboard() {
         });
     }
 
-    const totalEvaluated = selectedDate === "all" ? (presentCount + absentCount) : studentsAtLoc.length;
-    const overallPctVal = totalEvaluated > 0 ? Math.round((presentCount / totalEvaluated) * 100) : 0;
+    const totalEvaluated = selectedDate === "all" ? (presentCount + lateCount + absentCount) : studentsAtLoc.length;
+    const overallPctVal = totalEvaluated > 0 ? Math.round(((presentCount + lateCount) / totalEvaluated) * 100) : 0;
     
     // Update Stat KPI cards
     const kpiOverall = document.getElementById("kpi-overall");
     const kpiOverallRatio = document.getElementById("kpi-overall-ratio");
     const kpiPresentCount = document.getElementById("kpi-present-count");
     const kpiPresentPct = document.getElementById("kpi-present-pct");
+    const kpiLateCount = document.getElementById("kpi-late-count");
+    const kpiLatePct = document.getElementById("kpi-late-pct");
     const kpiAbsentCount = document.getElementById("kpi-absent-count");
     const kpiAbsentPct = document.getElementById("kpi-absent-pct");
     const kpiTeachersCount = document.getElementById("kpi-teachers-count");
     const kpiTeachersPct = document.getElementById("kpi-teachers-pct");
 
     if (kpiOverall) kpiOverall.textContent = totalEvaluated > 0 ? `${overallPctVal}%` : "No Data";
-    if (kpiOverallRatio) kpiOverallRatio.textContent = `${presentCount} Present / ${totalEvaluated} Total Students`;
+    if (kpiOverallRatio) kpiOverallRatio.textContent = `${presentCount + lateCount} Attended (${presentCount} Present, ${lateCount} Late) / ${totalEvaluated} Total Students`;
     if (kpiPresentCount) kpiPresentCount.textContent = presentCount;
     if (kpiPresentPct) kpiPresentPct.textContent = totalEvaluated > 0 ? `${Math.round((presentCount/totalEvaluated)*100)}% of Roster` : "0%";
+    if (kpiLateCount) kpiLateCount.textContent = lateCount;
+    if (kpiLatePct) kpiLatePct.textContent = totalEvaluated > 0 ? `${Math.round((lateCount/totalEvaluated)*100)}% of Roster` : "0%";
     if (kpiAbsentCount) kpiAbsentCount.textContent = absentCount;
     if (kpiAbsentPct) kpiAbsentPct.textContent = totalEvaluated > 0 ? `${Math.round((absentCount/totalEvaluated)*100)}% of Roster` : "0%";
 
     // Teacher attendance
-    let tPresent = 0, tAbsent = 0;
+    let tPresent = 0, tLate = 0, tAbsent = 0;
     teachersAtLoc.forEach(t => {
         const st = selectedDate === "all" ? null : appState.attendance.Teachers[selectedDate]?.[t.ID];
         if (st === "present") tPresent++;
+        else if (st === "late") tLate++;
         else if (st === "absent") tAbsent++;
     });
-    if (kpiTeachersCount) kpiTeachersCount.textContent = selectedDate === "all" ? teachersAtLoc.length : `${tPresent} / ${teachersAtLoc.length}`;
-    if (kpiTeachersPct) kpiTeachersPct.textContent = selectedDate === "all" ? "Total Active Faculty" : `${teachersAtLoc.length > 0 ? Math.round((tPresent / teachersAtLoc.length) * 100) : 0}% Present`;
+    if (kpiTeachersCount) kpiTeachersCount.textContent = selectedDate === "all" ? teachersAtLoc.length : `${tPresent + tLate} / ${teachersAtLoc.length}`;
+    if (kpiTeachersPct) kpiTeachersPct.textContent = selectedDate === "all" ? "Total Active Faculty" : `${teachersAtLoc.length > 0 ? Math.round(((tPresent + tLate) / teachersAtLoc.length) * 100) : 0}% Attended`;
 
     // Render Class List breakdown
     const classList = document.getElementById("kpi-class-list");
     if (classList) {
         classList.innerHTML = "";
         GRADES.forEach(grade => {
-            const stats = classStats[grade] || { present: 0, total: 0, absent: 0 };
+            const stats = classStats[grade] || { present: 0, late: 0, total: 0, absent: 0 };
             if (stats.total > 0) {
-                const pct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+                const attended = (stats.present || 0) + (stats.late || 0);
+                const pct = stats.total > 0 ? Math.round((attended / stats.total) * 100) : 0;
+                const pPct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+                const lPct = stats.total > 0 ? Math.round(((stats.late || 0) / stats.total) * 100) : 0;
+                const aPct = stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0;
                 const roomStr = CLASS_ROOMS[grade] ? ` (Room ${CLASS_ROOMS[grade]})` : "";
                 const li = document.createElement("li");
                 li.style.padding = "10px 12px";
@@ -2850,12 +2886,13 @@ function renderDashboard() {
                         <span style="font-weight: 600; font-size: 0.95rem;">${grade}${roomStr}</span>
                         <div>
                             <span style="font-weight: 700; color: ${pct >= 85 ? 'var(--success-color)' : pct >= 70 ? 'var(--warning-color)' : 'var(--danger-color)'}; font-size: 0.95rem;">${pct}%</span>
-                            <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: 4px;">(${stats.present}/${stats.total})</span>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: 4px;">(P: ${stats.present}, L: ${stats.late || 0}, A: ${stats.absent} / ${stats.total})</span>
                         </div>
                     </div>
                     <div style="background: var(--border-color); height: 6px; border-radius: 4px; overflow: hidden; display: flex;">
-                        <div style="background: var(--success-color); width: ${pct}%; height: 100%;"></div>
-                        <div style="background: var(--danger-color); width: ${stats.total > 0 ? Math.round((stats.absent/stats.total)*100) : 0}%; height: 100%;"></div>
+                        <div style="background: var(--success-color); width: ${pPct}%; height: 100%;" title="Present: ${stats.present}"></div>
+                        <div style="background: var(--warning-color); width: ${lPct}%; height: 100%;" title="Late: ${stats.late || 0}"></div>
+                        <div style="background: var(--danger-color); width: ${aPct}%; height: 100%;" title="Absent: ${stats.absent}"></div>
                     </div>
                 `;
                 classList.appendChild(li);
@@ -2871,9 +2908,9 @@ function renderDashboard() {
         const chartCanvas = document.getElementById("kpi-pie-chart");
         if (chartCanvas) {
             const ctx = chartCanvas.getContext("2d");
-            const chartLabels = selectedDate === "all" ? ["Present", "Absent"] : ["Present", "Absent", "Unmarked"];
-            const chartData = selectedDate === "all" ? [presentCount, absentCount] : [presentCount, absentCount, unmarkedCount];
-            const chartColors = selectedDate === "all" ? ["#10b981", "#ef4444"] : ["#10b981", "#ef4444", "#94a3b8"];
+            const chartLabels = selectedDate === "all" ? ["Present", "Late", "Absent"] : ["Present", "Late", "Absent", "Unmarked"];
+            const chartData = selectedDate === "all" ? [presentCount, lateCount, absentCount] : [presentCount, lateCount, absentCount, unmarkedCount];
+            const chartColors = selectedDate === "all" ? ["#10b981", "#f59e0b", "#ef4444"] : ["#10b981", "#f59e0b", "#ef4444", "#94a3b8"];
 
             window.kpiChart = new Chart(ctx, {
                 type: "pie",
@@ -3113,17 +3150,25 @@ function generateMasterExcelWithAttendanceAndEmail() {
         const locStudents = appState.students.filter(s => s.Location === loc);
 
         const pT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "present");
+        const lT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "late");
         const aT = locTeachers.filter(t => appState.attendance.Teachers[activeDate]?.[t.ID] === "absent");
         const pS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "present");
+        const lS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "late");
         const aS = locStudents.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "absent");
 
         emailBody += `📍 LOCATION: ${loc}\n`;
         emailBody += `-------------------------------------------\n`;
-        emailBody += `- Teachers: Present: ${pT.length}/${locTeachers.length} | Absent: ${aT.length}/${locTeachers.length}\n`;
+        emailBody += `- Teachers: Present: ${pT.length}/${locTeachers.length} | Late: ${lT.length}/${locTeachers.length} | Absent: ${aT.length}/${locTeachers.length}\n`;
+        if (lT.length > 0) {
+            emailBody += `  Late Teachers: ${lT.map(t => t.Name).join(", ")}\n`;
+        }
         if (aT.length > 0) {
             emailBody += `  Absent Teachers: ${aT.map(t => t.Name).join(", ")}\n`;
         }
-        emailBody += `- Students: Present: ${pS.length}/${locStudents.length} | Absent: ${aS.length}/${locStudents.length}\n`;
+        emailBody += `- Students: Present: ${pS.length}/${locStudents.length} | Late: ${lS.length}/${locStudents.length} | Absent: ${aS.length}/${locStudents.length}\n`;
+        if (lS.length > 0) {
+            emailBody += `  Late Students: ${lS.map(s => s.Name).join(", ")}\n`;
+        }
         if (aS.length > 0) {
             emailBody += `  Absent Students: ${aS.map(s => s.Name).join(", ")}\n`;
         }
@@ -3133,9 +3178,10 @@ function generateMasterExcelWithAttendanceAndEmail() {
         GRADES.forEach(g => {
             const classKids = locStudents.filter(s => s.Grade === g);
             const cp = classKids.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "present").length;
+            const cl = classKids.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "late").length;
             const ca = classKids.filter(s => appState.attendance.Students[activeDate]?.[s.ID] === "absent").length;
-            const cu = classKids.length - cp - ca;
-            emailBody += `  • ${g.padEnd(12)}: Present: ${cp}/${classKids.length} | Absent: ${ca} | Unmarked: ${cu}\n`;
+            const cu = classKids.length - cp - cl - ca;
+            emailBody += `  • ${g.padEnd(12)}: Present: ${cp}/${classKids.length} | Late: ${cl} | Absent: ${ca} | Unmarked: ${cu}\n`;
         });
         emailBody += `\n`;
     });

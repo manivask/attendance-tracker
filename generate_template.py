@@ -190,7 +190,7 @@ def create_tbta_sheets(output_path="attendance_template.xlsx"):
 
     # 6. Summary Dashboard Sheet
     ws_dashboard = wb.create_sheet(title="Summary_Dashboard")
-    dash_headers = ["Grade / Class", "Room", "Total Students", "Present", "Absent", "Unmarked", "Attendance Rate"]
+    dash_headers = ["Grade / Class", "Room", "Total Students", "Present", "Late", "Absent", "Unmarked", "Attendance Rate"]
     ws_dashboard.append(dash_headers)
     for col_num, h in enumerate(dash_headers, 1):
         cell = ws_dashboard.cell(row=1, column=col_num)
@@ -199,7 +199,7 @@ def create_tbta_sheets(output_path="attendance_template.xlsx"):
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     for c in classes_def:
-        ws_dashboard.append([c["grade"], c["room"], len(sample_students_by_class.get(c["name"], [])), 0, 0, len(sample_students_by_class.get(c["name"], [])), "0%"])
+        ws_dashboard.append([c["grade"], c["room"], len(sample_students_by_class.get(c["name"], [])), 0, 0, 0, len(sample_students_by_class.get(c["name"], [])), "0%"])
 
     # Auto adjust column widths
     for sheet in wb.worksheets:
