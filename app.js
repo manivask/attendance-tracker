@@ -15,14 +15,14 @@ const GRADES = [
 
 // Room number mapping (populated from Teacher sheet in Excel)
 const CLASS_ROOMS = {
-    "Ilanthalir": "126",
+    "Ilanthalir": "118",
     "Mazhalai":   "116",
     "Nilai 1":    "118",
     "Nilai 2A":   "122",
     "Nilai 2B":   "125",
     "Nilai 3A":   "124",
     "Nilai 3B":   "127",
-    "Nilai 4A":   "129",
+    "Nilai 4A":   "123",
     "Nilai 4B":   "130",
     "Nilai 5":    "120",
     "Nilai 6":    "115",
@@ -57,6 +57,9 @@ let appState = {
     searchQuery: "",
     currentUserRole: null,
     customRosterSaved: false,
+
+    teacherCutoffTime: "19:00", // Default max 7:00 PM EST teacher attendance cutoff
+    submittedClasses: {}, // { [dateStr]: { [className]: true } }
 
     teachers: [...DEFAULT_TEACHERS],
     students: [...DEFAULT_STUDENTS],
@@ -850,6 +853,97 @@ function getEstDateTime(date) {
     );
 }
 
+// Helper: get teacher attendance cutoff time (default "19:00" = 7:00 PM EST)
+function getTeacherCutoffTime() {
+    return appState.teacherCutoffTime || "19:00";
+}
+
+// Convert 24-hour time "HH:MM" to "H:MM AM/PM"
+function formatTime12h(time24) {
+    if (!time24) return "7:00 PM";
+    const [hStr, mStr] = time24.split(":");
+    let h = parseInt(hStr, 10);
+    const m = mStr ? mStr.padStart(2, "0") : "00";
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+}
+
+// Check if current EST time is past the teacher attendance cutoff
+function isPastTeacherCutoff() {
+    // Only teachers are subject to this cutoff restriction
+    if (!appState.currentUserRole || appState.currentUserRole.role !== "Teacher") {
+        return false;
+    }
+
+    const cutoffStr = getTeacherCutoffTime();
+    const [cutoffH, cutoffM] = cutoffStr.split(":").map(Number);
+    const nowEst = getEstDateTime(new Date());
+
+    const currentMinutes = nowEst.getHours() * 60 + nowEst.getMinutes();
+    const cutoffMinutes = (cutoffH || 0) * 60 + (cutoffM || 0);
+
+    const todayEstStr = [
+        nowEst.getFullYear(),
+        String(nowEst.getMonth() + 1).padStart(2, '0'),
+        String(nowEst.getDate()).padStart(2, '0')
+    ].join('-');
+
+    const activeDate = getActiveDateString();
+
+    // If session date is in the past, cutoff has passed
+    if (activeDate && activeDate < todayEstStr) {
+        return true;
+    }
+
+    return currentMinutes >= cutoffMinutes;
+}
+
+// Check if class attendance has been done and submitted for a date
+function isClassAttendanceSubmitted(grade, dateStr) {
+    if (!dateStr) dateStr = getActiveDateString();
+    if (appState.lockedDates && appState.lockedDates.includes(dateStr)) return true;
+    if (appState.submittedClasses && appState.submittedClasses[dateStr] && appState.submittedClasses[dateStr][grade]) {
+        return true;
+    }
+    const loc = (appState.currentUserRole && appState.currentUserRole.location) || appState.currentLocation || "Riverview";
+    const classStudents = appState.students.filter(s => s.Location === loc && s.Grade === grade);
+    if (classStudents.length > 0 && classStudents.every(s => Boolean(appState.attendance.Students[dateStr]?.[s.ID]))) {
+        return true;
+    }
+    return false;
+}
+
+// Update class dropdown options with green tick mark for completed & submitted classes
+function updateClassDropdownOptions() {
+    const select = document.getElementById("main-class-select");
+    if (!select) return;
+    const currentVal = select.value;
+    const activeDate = getActiveDateString();
+
+    GRADES.forEach(grade => {
+        const option = select.querySelector(`option[value="${grade}"]`);
+        if (option) {
+            const room = CLASS_ROOMS[grade] || "—";
+            const done = isClassAttendanceSubmitted(grade, activeDate);
+            const checkPrefix = done ? "✅ " : "";
+            option.textContent = `${checkPrefix}${grade} (Room ${room})`;
+            if (done) {
+                option.style.color = "#059669";
+                option.style.fontWeight = "600";
+            } else {
+                option.style.color = "";
+                option.style.fontWeight = "";
+            }
+        }
+    });
+
+    if (currentVal) {
+        select.value = currentVal;
+    }
+}
+
 // Check if current logged in user can bypass locks (is Principal or VP)
 function canBypassLock() {
     if (!appState.currentUserRole) return false;
@@ -892,6 +986,32 @@ function updateDateTimeAndRules() {
         if (statusTitleSpan) statusTitleSpan.textContent = "Weekly Record Open";
         if (statusTimeSpan) statusTimeSpan.textContent = formatDateForDisplay(dateStr);
     }
+
+    // Update teacher cutoff banner
+    const cutoffBanner = document.getElementById("teacher-cutoff-banner");
+    const isTeacher = appState.currentUserRole && appState.currentUserRole.role === "Teacher";
+    const cutoffTime12 = formatTime12h(getTeacherCutoffTime());
+
+    if (cutoffBanner) {
+        if (isTeacher) {
+            cutoffBanner.style.display = "flex";
+            if (isPastTeacherCutoff()) {
+                cutoffBanner.style.background = "rgba(239, 68, 68, 0.12)";
+                cutoffBanner.style.color = "var(--danger-color)";
+                cutoffBanner.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+                cutoffBanner.innerHTML = `⚠️ <span><strong>Cutoff Passed (${cutoffTime12} EST):</strong> Entry for 'Present (P)' is closed. Teachers can only enter Late (L) or Absent (A).</span>`;
+            } else {
+                cutoffBanner.style.background = "rgba(16, 185, 129, 0.12)";
+                cutoffBanner.style.color = "var(--success-color)";
+                cutoffBanner.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+                cutoffBanner.innerHTML = `⏰ <span><strong>Attendance Window Open:</strong> Teachers can mark Present (P) till <strong>${cutoffTime12} EST</strong>. After cutoff, only Late (L) or Absent (A) can be entered.</span>`;
+            }
+        } else {
+            cutoffBanner.style.display = "none";
+        }
+    }
+
+    updateAdminCutoffBadge();
 
     // Keep date bar in sync
     if (appState.currentUserRole) {
@@ -1573,6 +1693,12 @@ function setAttendance(id, status) {
         return;
     }
 
+    // Teacher 7 PM EST Cutoff: If past cutoff, teacher can only enter Late (L) or Absent (A) instead of Present (P)
+    if (status === 'present' && appState.currentUserRole && appState.currentUserRole.role === "Teacher" && isPastTeacherCutoff()) {
+        alert(`⚠️ Attendance entry for 'Present (P)' is closed after ${formatTime12h(getTeacherCutoffTime())} EST. Teachers can only enter Late (L) or Absent (A).`);
+        return;
+    }
+
     const tab = appState.currentTab;
     const item = tab === "Students" ? appState.students.find(s => s.ID === id) : appState.teachers.find(t => t.ID === id);
     const oldStatus = appState.attendance[tab][activeDate]?.[id] || "Unmarked";
@@ -2063,9 +2189,16 @@ function renderList() {
                 const statusClass = status ? status : "unmarked";
                 statusControlHtml = `<span class="locked-cell ${statusClass}">${displayStatus}</span>`;
             } else {
+                const isTeacher = appState.currentUserRole && appState.currentUserRole.role === "Teacher";
+                const pastCutoff = isTeacher && isPastTeacherCutoff();
+                const pDisabled = pastCutoff;
+                const pTitle = pDisabled ? `Present closed after ${formatTime12h(getTeacherCutoffTime())} EST (Only Late/Absent allowed)` : "Present";
+                const pClick = pDisabled ? `alert('⚠️ Attendance entry for Present (P) is closed after ${formatTime12h(getTeacherCutoffTime())} EST. Teachers can only enter Late (L) or Absent (A).')` : `setAttendance('${item.ID}', 'present')`;
+                const pClass = `status-opt present ${status === 'present' ? 'active' : ''} ${pDisabled ? 'disabled-cutoff' : ''}`;
+
                 statusControlHtml = `
                     <div class="status-selector">
-                        <button type="button" class="status-opt present ${status === 'present' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'present')" title="Present">P</button>
+                        <button type="button" class="${pClass}" onclick="${pClick}" title="${pTitle}">P</button>
                         <button type="button" class="status-opt late ${status === 'late' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'late')" title="Late">L</button>
                         <button type="button" class="status-opt absent ${status === 'absent' ? 'active' : ''}" onclick="setAttendance('${item.ID}', 'absent')" title="Absent">A</button>
                     </div>
@@ -2088,6 +2221,7 @@ function renderList() {
     });
 
     document.getElementById("empty-state").style.display = filteredCount === 0 ? "block" : "none";
+    updateClassDropdownOptions();
 }
 
 // Generate blank template sheet with SheetJS
@@ -2488,8 +2622,13 @@ function submitAttendance() {
             if (!confirmSubmit) return;
         }
 
+        if (!appState.submittedClasses) appState.submittedClasses = {};
+        if (!appState.submittedClasses[activeDate]) appState.submittedClasses[activeDate] = {};
+        appState.submittedClasses[activeDate][cls] = true;
+
         logActivity(`Class attendance submitted for ${cls} at ${loc} by Teacher`);
         saveStateToLocalStorage();
+        updateClassDropdownOptions();
         if (window.AttendanceSync?.enabled()) {
             window.AttendanceSync.forceSync(getSharedPersistedState());
             alert(`✅ Class attendance for ${cls} has been submitted & synced to Google Sheets!
@@ -2605,6 +2744,8 @@ function getPersistedState() {
         activeDate: appState.activeDate,
         lockedDates: appState.lockedDates,
         attestations: appState.attestations,
+        teacherCutoffTime: appState.teacherCutoffTime || "19:00",
+        submittedClasses: appState.submittedClasses || {},
         currentUserRole: appState.currentUserRole,
         customRosterSaved: appState.customRosterSaved,
         logs: appState.logs,
@@ -2681,7 +2822,16 @@ function applyPersistedState(parsed, includeSession) {
         LEADERSHIP_ROSTER.length = 0;
         LEADERSHIP_ROSTER.push(...parsed.leadership);
     }
+    if (parsed.teacherCutoffTime) appState.teacherCutoffTime = parsed.teacherCutoffTime;
+    if (parsed.submittedClasses) {
+        if (!appState.submittedClasses) appState.submittedClasses = {};
+        for (const [dt, classes] of Object.entries(parsed.submittedClasses)) {
+            if (!appState.submittedClasses[dt]) appState.submittedClasses[dt] = {};
+            Object.assign(appState.submittedClasses[dt], classes);
+        }
+    }
     renderAuditLogs();
+    updateClassDropdownOptions();
 }
 
 function clearLoadedFile() {
@@ -2888,6 +3038,8 @@ function renderDashboard() {
                 const pPct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
                 const lPct = stats.total > 0 ? Math.round(((stats.late || 0) / stats.total) * 100) : 0;
                 const aPct = stats.total > 0 ? Math.round((stats.absent / stats.total) * 100) : 0;
+                const isSubmitted = isClassAttendanceSubmitted(grade, selectedDate === "all" ? getActiveDateString() : selectedDate);
+                const checkPrefix = isSubmitted ? "✅ " : "";
                 const roomStr = CLASS_ROOMS[grade] ? ` (Room ${CLASS_ROOMS[grade]})` : "";
                 const li = document.createElement("li");
                 li.style.padding = "10px 12px";
@@ -2897,7 +3049,7 @@ function renderDashboard() {
                 li.style.border = "1px solid var(--border-color)";
                 li.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <span style="font-weight: 600; font-size: 0.95rem;">${grade}${roomStr}</span>
+                        <span style="font-weight: 600; font-size: 0.95rem;">${checkPrefix}${grade}${roomStr}</span>
                         <div>
                             <span style="font-weight: 700; color: ${pct >= 85 ? 'var(--success-color)' : pct >= 70 ? 'var(--warning-color)' : 'var(--danger-color)'}; font-size: 0.95rem;">${pct}%</span>
                             <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: 4px;">(P: ${stats.present}, L: ${stats.late || 0}, A: ${stats.absent} / ${stats.total})</span>
@@ -2913,6 +3065,13 @@ function renderDashboard() {
             }
         });
     }
+
+    // Sync admin cutoff controls on dashboard
+    const adminCutoffInput = document.getElementById("admin-cutoff-input");
+    if (adminCutoffInput) {
+        adminCutoffInput.value = getTeacherCutoffTime();
+    }
+    updateAdminCutoffBadge();
 
     // Render Pie Chart
     if (window.Chart) {
@@ -2964,6 +3123,60 @@ function renderDashboard() {
                 }
             });
         }
+    }
+}
+
+// Admin Cutoff Control Handlers
+function saveAdminCutoffTime() {
+    const input = document.getElementById("admin-cutoff-input");
+    if (!input || !input.value) return;
+    const newTime = input.value;
+    appState.teacherCutoffTime = newTime;
+    saveStateToLocalStorage();
+    if (window.AttendanceSync?.enabled()) {
+        window.AttendanceSync.queue(getSharedPersistedState());
+    }
+    logActivity(`Administrator updated Teacher Attendance Cutoff to ${formatTime12h(newTime)} EST (${newTime})`);
+
+    const msg = document.getElementById("admin-cutoff-msg");
+    if (msg) {
+        msg.textContent = `✅ Cutoff updated to ${formatTime12h(newTime)} EST!`;
+        msg.style.display = "inline";
+        setTimeout(() => { if (msg) msg.style.display = "none"; }, 3500);
+    }
+    updateDateTimeAndRules();
+    updateAdminCutoffBadge();
+    renderList();
+}
+
+function setAdminCutoffPreset(presetTime) {
+    const input = document.getElementById("admin-cutoff-input");
+    if (input) input.value = presetTime;
+    saveAdminCutoffTime();
+}
+
+function handleAdminCutoffInputChange() {
+    updateAdminCutoffBadge();
+}
+
+function updateAdminCutoffBadge() {
+    const badge = document.getElementById("cutoff-live-badge");
+    if (!badge) return;
+    const cutoff = getTeacherCutoffTime();
+    const [cutoffH, cutoffM] = cutoff.split(":").map(Number);
+    const nowEst = getEstDateTime(new Date());
+    const currentMinutes = nowEst.getHours() * 60 + nowEst.getMinutes();
+    const cutoffMinutes = (cutoffH || 0) * 60 + (cutoffM || 0);
+    const isPast = currentMinutes >= cutoffMinutes;
+
+    if (isPast) {
+        badge.style.background = "rgba(239, 68, 68, 0.15)";
+        badge.style.color = "var(--danger-color)";
+        badge.textContent = `Cutoff: ${formatTime12h(cutoff)} EST (Currently Past Cutoff - L/A only)`;
+    } else {
+        badge.style.background = "rgba(16, 185, 129, 0.15)";
+        badge.style.color = "var(--success-color)";
+        badge.textContent = `Cutoff: ${formatTime12h(cutoff)} EST (Currently Open - P/L/A)`;
     }
 }
 

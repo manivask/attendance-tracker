@@ -1567,3 +1567,25 @@ input[value="Developer"] + span {
     transform: translateY(-1px);
 }
 
+/* Cutoff Time Restricted Buttons & Banners */
+.status-opt.present.disabled-cutoff {
+    opacity: 0.38 !important;
+    cursor: not-allowed !important;
+    background: rgba(148, 163, 184, 0.15) !important;
+    color: var(--text-muted) !important;
+    border: 1px dashed var(--border-color) !important;
+    box-shadow: none !important;
+    pointer-events: auto;
+}
+
+.status-opt.present.disabled-cutoff:hover {
+    border-color: var(--danger-color) !important;
+    color: var(--danger-color) !important;
+}
+
+#teacher-cutoff-banner {
+    display: none;
+    transition: all 0.2s ease;
+}
+
+

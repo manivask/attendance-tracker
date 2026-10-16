@@ -228,14 +228,14 @@
                 <div class="class-picker" id="main-class-picker" style="display: none; margin-left: 16px;">
                     <label for="main-class-select" style="font-weight: 600;">🎓 Class / Grade:</label>
                     <select id="main-class-select" onchange="handleMainClassChange()" style="padding: 6px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); margin-left: 8px;">
-                        <option value="Ilanthalir">Ilanthalir (Room 126)</option>
+                        <option value="Ilanthalir">Ilanthalir (Room 118)</option>
                         <option value="Mazhalai">Mazhalai (Room 116)</option>
                         <option value="Nilai 1">Nilai 1 (Room 118)</option>
                         <option value="Nilai 2A">Nilai 2A (Room 122)</option>
                         <option value="Nilai 2B">Nilai 2B (Room 125)</option>
                         <option value="Nilai 3A">Nilai 3A (Room 124)</option>
                         <option value="Nilai 3B">Nilai 3B (Room 127)</option>
-                        <option value="Nilai 4A">Nilai 4A (Room 129)</option>
+                        <option value="Nilai 4A">Nilai 4A (Room 123)</option>
                         <option value="Nilai 4B">Nilai 4B (Room 130)</option>
                         <option value="Nilai 5">Nilai 5 (Room 120)</option>
                         <option value="Nilai 6">Nilai 6 (Room 115)</option>
@@ -328,6 +328,7 @@
                     <div>
                         <h2 id="current-sheet-title">Students List</h2>
                         <div id="assigned-teachers-info" style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; font-weight: 600;"></div>
+                        <div id="teacher-cutoff-banner" style="display:none; margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;"></div>
                     </div>
                     <!-- Attendance Stats -->
                     <div class="selection-stats" id="selection-stats-container">
@@ -403,6 +404,36 @@
                         <label for="kpi-date-select" style="font-weight: 600; font-size: 0.9rem;">📅 Session Date:</label>
                         <select id="kpi-date-select" onchange="handleKpiDateChange()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; font-weight: 600;">
                         </select>
+                    </div>
+                </div>
+
+                <!-- Admin Timing Cutoff Control Card -->
+                <div class="card" id="admin-cutoff-control-card" style="margin-bottom: 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <h4 style="margin: 0 0 4px 0; font-size: 1.02rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                ⏰ Teacher Attendance Cutoff Window (EST)
+                            </h4>
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">
+                                Controls till when teachers can enter "Present (P)". Beyond cutoff, only "Late (L)" or "Absent (A)" is allowed.
+                            </p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <label for="admin-cutoff-input" style="font-weight: 600; font-size: 0.9rem;">Cutoff Time (EST):</label>
+                            <input type="time" id="admin-cutoff-input" value="19:00" style="padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 0.95rem; font-weight: 700;">
+                            <button type="button" class="btn btn-primary" onclick="saveAdminCutoffTime()" style="padding: 7px 14px; font-weight: 700; font-size: 0.88rem; background: var(--accent-color); border-color: var(--accent-color); cursor: pointer;">
+                                💾 Update Timing
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; font-size: 0.82rem;">
+                        <span style="color: var(--text-muted); font-weight: 600;">Presets:</span>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('19:00')" style="padding: 4px 10px; font-size: 0.8rem;">7:00 PM (Default)</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('20:00')" style="padding: 4px 10px; font-size: 0.8rem;">8:00 PM</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('21:00')" style="padding: 4px 10px; font-size: 0.8rem;">9:00 PM</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('23:59')" style="padding: 4px 10px; font-size: 0.8rem;">11:59 PM (Open All Day)</button>
+                        <span id="cutoff-live-badge" style="margin-left: 6px; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: var(--accent-color);">Cutoff: 7:00 PM EST</span>
+                        <span id="admin-cutoff-msg" style="color: var(--success-color); font-weight: 700; margin-left: 8px; display: none;">✅ Cutoff updated!</span>
                     </div>
                 </div>
                 
@@ -544,8 +575,8 @@
 
 
     <script src="chart.js"></script>
-    <script src="sync-config.js?v=21"></script>
-    <script src="sync.js?v=21"></script>
-    <script src="app.js?v=21"></script>
+    <script src="sync-config.js?v=22"></script>
+    <script src="sync.js?v=22"></script>
+    <script src="app.js?v=22"></script>
 </body>
 </html>
