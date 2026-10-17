@@ -132,12 +132,17 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
                 <button class="btn btn-secondary" onclick="forceSyncFromCloud()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
                     ⬇️ Pull Latest Attendance Now
                 </button>
                 <button class="btn btn-secondary" onclick="forcePushToCloud()" style="flex: 1; padding: 10px; font-size: 0.88rem; justify-content: center;">
                     ⬆️ Push Local Data to Sheets
+                </button>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <button id="recover-log-btn" class="btn btn-secondary" onclick="recoverAttendanceFromLog()" style="width: 100%; padding: 10px; font-size: 0.88rem; justify-content: center; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); color: #d97706; font-weight: 700;">
+                    🔄 Recover Missing Attendance from Google Sheet Log
                 </button>
             </div>
 
@@ -420,7 +425,7 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <label for="admin-cutoff-input" style="font-weight: 600; font-size: 0.9rem;">Cutoff Time (EST):</label>
-                            <input type="time" id="admin-cutoff-input" value="19:00" style="padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 0.95rem; font-weight: 700;">
+                            <input type="time" id="admin-cutoff-input" value="21:00" style="padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 0.95rem; font-weight: 700;">
                             <button type="button" class="btn btn-primary" onclick="saveAdminCutoffTime()" style="padding: 7px 14px; font-weight: 700; font-size: 0.88rem; background: var(--accent-color); border-color: var(--accent-color); cursor: pointer;">
                                 💾 Update Timing
                             </button>
@@ -428,11 +433,12 @@
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; font-size: 0.82rem;">
                         <span style="color: var(--text-muted); font-weight: 600;">Presets:</span>
-                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('19:00')" style="padding: 4px 10px; font-size: 0.8rem;">7:00 PM (Default)</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('19:00')" style="padding: 4px 10px; font-size: 0.8rem;">7:00 PM</button>
                         <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('20:00')" style="padding: 4px 10px; font-size: 0.8rem;">8:00 PM</button>
-                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('21:00')" style="padding: 4px 10px; font-size: 0.8rem;">9:00 PM</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('20:30')" style="padding: 4px 10px; font-size: 0.8rem;">8:30 PM</button>
+                        <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('21:00')" style="padding: 4px 10px; font-size: 0.8rem;">9:00 PM (Default)</button>
                         <button type="button" class="btn btn-secondary" onclick="setAdminCutoffPreset('23:59')" style="padding: 4px 10px; font-size: 0.8rem;">11:59 PM (Open All Day)</button>
-                        <span id="cutoff-live-badge" style="margin-left: 6px; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: var(--accent-color);">Cutoff: 7:00 PM EST</span>
+                        <span id="cutoff-live-badge" style="margin-left: 6px; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: var(--accent-color);">Cutoff: 9:00 PM EST</span>
                         <span id="admin-cutoff-msg" style="color: var(--success-color); font-weight: 700; margin-left: 8px; display: none;">✅ Cutoff updated!</span>
                     </div>
                 </div>
@@ -575,8 +581,8 @@
 
 
     <script src="chart.js"></script>
-    <script src="sync-config.js?v=22"></script>
-    <script src="sync.js?v=22"></script>
-    <script src="app.js?v=22"></script>
+    <script src="sync-config.js?v=23"></script>
+    <script src="sync.js?v=23"></script>
+    <script src="app.js?v=23"></script>
 </body>
 </html>

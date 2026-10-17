@@ -29,6 +29,21 @@ const CLASS_ROOMS = {
     "Nilai 7":    "117",
     "Nilai 8":    "111"
 };
+window.CLASS_ROOMS = CLASS_ROOMS;
+
+function syncClassRoomsFromTeachers() {
+    if (!appState || !appState.teachers || !Array.isArray(appState.teachers)) return;
+    appState.teachers.forEach(t => {
+        const cls = t["Class Assignment"] || t.Grade;
+        if (cls && t.Room) {
+            CLASS_ROOMS[cls] = String(t.Room).trim();
+        }
+    });
+    if (typeof updateClassDropdownOptions === "function") {
+        updateClassDropdownOptions();
+    }
+}
+window.syncClassRoomsFromTeachers = syncClassRoomsFromTeachers;
 
 // Default empty arrays — populated dynamically from Excel on load
 const DEFAULT_TEACHERS = [];
@@ -853,9 +868,9 @@ function getEstDateTime(date) {
     );
 }
 
-// Helper: get teacher attendance cutoff time (default "19:00" = 7:00 PM EST)
+// Helper: get teacher attendance cutoff time (default "21:00" = 9:00 PM EST)
 function getTeacherCutoffTime() {
-    return appState.teacherCutoffTime || "19:00";
+    return appState.teacherCutoffTime || "21:00";
 }
 
 // Convert 24-hour time "HH:MM" to "H:MM AM/PM"
@@ -2608,7 +2623,7 @@ function performDirectShareOrDownload() {
 }
 
 // Submit attendance
-function submitAttendance() {
+async function submitAttendance() {
     const activeDate = getActiveDateString();
 
     if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
@@ -2629,15 +2644,29 @@ function submitAttendance() {
         logActivity(`Class attendance submitted for ${cls} at ${loc} by Teacher`);
         saveStateToLocalStorage();
         updateClassDropdownOptions();
+
         if (window.AttendanceSync?.enabled()) {
-            window.AttendanceSync.forceSync(getSharedPersistedState());
-            alert(`✅ Class attendance for ${cls} has been submitted & synced to Google Sheets!
-
-All teachers and administrators can now see this class attendance live.`);
+            const submitBtn = document.getElementById("submit-class-btn");
+            const originalText = submitBtn ? submitBtn.innerHTML : "";
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = "⏳ Syncing to Google Sheets...";
+            }
+            try {
+                const ok = await window.AttendanceSync.forceSync(getSharedPersistedState());
+                if (ok) {
+                    alert(`✅ Class attendance for ${cls} has been submitted & synced to Google Sheets!\n\nAll teachers and administrators can now see this class attendance live.`);
+                } else {
+                    alert(`📱 Class attendance for ${cls} has been saved locally!\n\n(Saved safely to your device. Cloud sync will automatically complete momentarily).`);
+                }
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }
         } else {
-            alert(`✅ Class attendance for ${cls} has been saved!
-
-(Saved locally to this device).`);
+            alert(`✅ Class attendance for ${cls} has been saved!\n\n(Saved locally to this device).`);
         }
         return;
     }
@@ -2774,7 +2803,10 @@ function loadStateFromLocalStorage() {
 }
 
 function applyPersistedState(parsed, includeSession) {
-    if (parsed.teachers && Array.isArray(parsed.teachers) && parsed.teachers.length > 0) appState.teachers = parsed.teachers;
+    if (parsed.teachers && Array.isArray(parsed.teachers) && parsed.teachers.length > 0) {
+        appState.teachers = parsed.teachers;
+        syncClassRoomsFromTeachers();
+    }
     if (parsed.students && Array.isArray(parsed.students) && parsed.students.length > 0) appState.students = parsed.students;
     if (parsed.attendance) {
         if (!appState.attendance) appState.attendance = { Teachers: {}, Students: {} };
@@ -3134,7 +3166,7 @@ function saveAdminCutoffTime() {
     appState.teacherCutoffTime = newTime;
     saveStateToLocalStorage();
     if (window.AttendanceSync?.enabled()) {
-        window.AttendanceSync.queue(getSharedPersistedState());
+        window.AttendanceSync.forceSync(getSharedPersistedState());
     }
     logActivity(`Administrator updated Teacher Attendance Cutoff to ${formatTime12h(newTime)} EST (${newTime})`);
 
@@ -3187,6 +3219,9 @@ function updateRosterItem(type, id, field, value) {
         const oldVal = item[field];
         item[field] = value;
         logActivity(`Admin updated ${type} ${id} field '${field}' from '${oldVal}' to '${value}'`);
+        if (type === 'Teachers') {
+            syncClassRoomsFromTeachers();
+        }
         saveStateToLocalStorage();
         renderList();
     }
@@ -3489,3 +3524,38 @@ async function forcePushToCloud() {
         alert("Sync failed: " + e.message);
     }
 }
+
+async function recoverAttendanceFromLog() {
+    if (!window.AttendanceSync?.enabled()) {
+        alert("Google Sheets sync is not configured.");
+        return;
+    }
+    const activeDate = getActiveDateString();
+    if (!confirm(`Do you want to scan the Google Sheets 'Attendance_Log' sheet and recover any missing attendance records for ${activeDate}?`)) {
+        return;
+    }
+    const btn = document.getElementById("recover-log-btn");
+    const origText = btn ? btn.textContent : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "⏳ Scanning Log Sheet...";
+    }
+    try {
+        const res = await window.AttendanceSync.recoverFromLog(activeDate);
+        if (res.success) {
+            renderList();
+            if (appState.currentTab === "Dashboard") renderDashboard();
+            alert(`✅ Recovery complete!\n\n${res.message || (res.count + ' attendance records restored.')}`);
+        } else {
+            alert("⚠️ " + (res.message || "No records could be recovered."));
+        }
+    } catch (e) {
+        alert("Error during recovery: " + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = origText;
+        }
+    }
+}
+window.recoverAttendanceFromLog = recoverAttendanceFromLog;

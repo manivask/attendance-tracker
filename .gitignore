@@ -7,3 +7,4 @@ aab/
 apk/
 __pycache__/
 *.pyc
+*.backup.xlsx
