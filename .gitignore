@@ -1,5 +1,6 @@
 # Dependencies and generated builds
 www/
+dist/
 node_modules/
 android/build/
 android/app/build/
