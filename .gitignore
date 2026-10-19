@@ -1,3 +1,4 @@
+# Dependencies and generated builds
 www/
 node_modules/
 android/build/
@@ -8,3 +9,36 @@ apk/
 __pycache__/
 *.pyc
 *.backup.xlsx
+
+# Production/private school data - NEVER commit
+/data/*.json
+/data/*.xlsx
+*Student_Attendance*.xlsx
+*Students*list*.xlsx
+*student*list*.xlsx
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+sync-config.js
+firebase-config.local.js
+serviceAccount*.json
+*service-account*.json
+
+# Signing keys / certificates
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# Local OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Keep reusable blank templates only by explicit exception
+!attendance_template.xlsx
+!TBTA-2026-2027-RHS-Attendance-And-Homework-Template.xlsx
