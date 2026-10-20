@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { resolveAuthProfile } from '../auth-profile.mjs';
-import { mapFirestoreStudents, requireStudentRoster } from '../auth-roster.mjs';
+import { mapFirestoreAttendance, mapFirestoreStudents, requireStudentRoster } from '../auth-roster.mjs';
 
 const teacher = { role: 'teacher', active: true, location: 'Riverview', assignedClassIds: ['nilai-1'] };
 const cls = { name: 'Nilai 1', location: 'Riverview', room: '118', active: true, teacherNames: [' Kohila Kandasamy ', 'Sharmila Mathivannan'] };
@@ -56,6 +56,23 @@ test('only an active admin gets the legacy admin role', async () => {
   assert.deepEqual(reads, ['users/teacher-uid']);
 });
 
+test('admin profile loads active class names for the Firebase teacher directory', async () => {
+  const session = await resolveAuthProfile('admin-uid', async (collection, id) => {
+    assert.equal(collection, 'users');
+    assert.equal(id, 'admin-uid');
+    return { role: 'admin', active: true, name: 'Admin' };
+  }, async collection => {
+    assert.equal(collection, 'classes');
+    return [
+      { id: 'nilai-1', name: 'Nilai 1', location: 'Riverview', room: '118', active: true, teacherNames: ['Teacher One'] },
+      { id: 'inactive', name: 'Inactive Class', location: 'Riverview', active: false, teacherNames: ['Hidden Teacher'] }
+    ];
+  });
+  assert.equal(session.role, 'Principal');
+  assert.deepEqual(session.classes.map(cls => cls.name), ['Nilai 1']);
+  assert.deepEqual(session.classes[0].teacherNames, ['Teacher One']);
+});
+
 test('maps only active, assigned Firestore students into the legacy table shape', () => {
   const roster = mapFirestoreStudents([
     { id: 'S001', classId: 'nilai-1', name: ' Student One ', active: true },
@@ -73,6 +90,21 @@ test('legacy roster requires at least one active student', () => {
   assert.deepEqual(requireStudentRoster([{ ID: 'S001' }]), [{ ID: 'S001' }]);
 });
 
+test('maps valid Firestore student and teacher history into the date view', () => {
+  assert.deepEqual(mapFirestoreAttendance([
+    { studentId: 'S001', date: '2026-10-16', status: 'present' },
+    { studentId: 'S002', date: '2026-10-16', status: 'L' },
+    { studentId: 'S003', date: 'invalid', status: 'absent' },
+    { studentId: 'S004', date: '2026-10-16', status: 'unknown' }
+  ], [
+    { teacherName: 'Teacher One', date: '2026-10-16', status: 'A' },
+    { teacherName: '', date: '2026-10-16', status: 'present' }
+  ]), {
+    Students: { '2026-10-16': { S001: 'present', S002: 'late' } },
+    Teachers: { '2026-10-16': { 'Teacher One': 'absent' } }
+  });
+});
+
 test('assigned teacher label uses class teacher names from Firestore', () => {
   const { run } = legacyHarness();
   assert.equal(run('getAssignedTeacherNames({ classId: "nilai-1", grade: "Nilai 1", location: "Riverview", classes: [{ id: "nilai-1", teacherNames: ["Kohila Kandasamy", "Sharmila Mathivannan"] }] }, [])'), 'Kohila Kandasamy & Sharmila Mathivannan');
@@ -80,26 +112,14 @@ test('assigned teacher label uses class teacher names from Firestore', () => {
 
 test('Firebase Teachers tab roster comes from the selected assigned class', () => {
   const { run } = legacyHarness();
-  const roster = JSON.parse(run('JSON.stringify(getFirebaseAssignedTeacherRoster({ role: "Teacher", classId: "nilai-2", classes: [{ id: "nilai-1", name: "Nilai 1", location: "Riverview", teacherNames: ["Wrong Class Teacher"] }, { id: "nilai-2", name: "Nilai 2", location: "Riverview", teacherNames: [" Teacher A ", "Teacher B", "teacher a"] }] }))'));
+  const roster = JSON.parse(run(`JSON.stringify(getFirebaseAssignedTeacherRoster({
+    role: "Teacher", classId: "nilai-2", classes: [
+      { id: "nilai-1", name: "Nilai 1", location: "Riverview", teacherNames: ["Wrong Class Teacher"] },
+      { id: "nilai-2", name: "Nilai 2", location: "Riverview", teacherNames: [" Teacher A ", "Teacher B", "teacher a"] }
+    ]
+  }))`));
   assert.deepEqual(roster.map(teacher => teacher.Name), ['Teacher A', 'Teacher B']);
   assert.ok(roster.every(teacher => teacher['Class Assignment'] === 'Nilai 2'));
-});
-
-test('admin profile loads active class names for the Firebase teacher directory', async () => {
-  const session = await resolveAuthProfile('admin-uid', async (collection, id) => {
-    assert.equal(collection, 'users');
-    assert.equal(id, 'admin-uid');
-    return { role: 'admin', active: true, name: 'Admin' };
-  }, async collection => {
-    assert.equal(collection, 'classes');
-    return [
-      { id: 'nilai-1', name: 'Nilai 1', location: 'Riverview', room: '118', active: true, teacherNames: ['Teacher One'] },
-      { id: 'inactive', name: 'Inactive Class', location: 'Riverview', active: false, teacherNames: ['Hidden Teacher'] }
-    ];
-  });
-  assert.equal(session.role, 'Principal');
-  assert.deepEqual(session.classes.map(cls => cls.name), ['Nilai 1']);
-  assert.deepEqual(session.classes[0].teacherNames, ['Teacher One']);
 });
 
 test('Firebase admin teacher roster combines class assignments without duplicate names', () => {
@@ -132,14 +152,18 @@ test('legacy UI stays locked until validated session, rejects cached roles and o
   assert.equal(element('main-app-container').inert, true);
   context.session = await resolve().result;
   context.roster = mapFirestoreStudents([{ id: 'S001', name: 'Student One', classId: 'nilai-1', active: true }], assignedClasses, 'Riverview');
+  context.attendance = { Students: { '2026-10-16': { S001: 'present' } }, Teachers: {} };
+  run('appState.activeDate = "2026-10-23"');
   run('appState.currentMode = "Homework"');
-  run('window.applyFirebaseSession(session, roster)');
+  run('window.applyFirebaseSession(session, roster, attendance)');
   assert.equal(run('appState.currentMode'), 'Attendance');
   assert.equal(element('main-app-container').inert, false);
   assert.equal(element('main-class-select').value, 'nilai-1');
   assert.equal(element('main-class-select').disabled, true);
   assert.equal(element('main-class-select').options.length, 1);
   assert.equal(run('appState.students[0].Name'), 'Student One');
+  assert.equal(run('appState.attendance.Students["2026-10-16"].S001'), 'present');
+  assert.equal(run('appState.activeDate'), '2026-10-16');
   assert.equal(element('location-select').disabled, true);
   element('main-class-select').value = 'nilai-2';
   run('handleMainClassChange(); switchTab("Dashboard");');
@@ -148,6 +172,7 @@ test('legacy UI stays locked until validated session, rejects cached roles and o
   assert.equal(run('getPersistedState().currentUserRole'), null);
   run('window.applyFirebaseSession(null)');
   assert.equal(element('main-app-container').inert, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(run('appState.attendance'))), { Students: {}, Teachers: {} });
 });
 test('legacy UI permits switching only between resolved assignments', async () => {
   const { context, run, element } = legacyHarness();
