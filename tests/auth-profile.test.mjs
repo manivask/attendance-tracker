@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { resolveAuthProfile } from '../auth-profile.mjs';
+import { mapFirestoreStudents, requireStudentRoster } from '../auth-roster.mjs';
 
 const teacher = { role: 'teacher', active: true, location: 'Riverview', assignedClassIds: ['nilai-1'] };
 const cls = { name: 'Nilai 1', location: 'Riverview', room: '118', active: true };
+const assignedClasses = [{ id: 'nilai-1', ...cls }];
 function resolve(profile = teacher, classes = { 'nilai-1': cls }) {
   const reads = [];
   return { reads, result: resolveAuthProfile('teacher-uid', async (collection, id) => {
@@ -53,6 +55,23 @@ test('only an active admin gets the legacy admin role', async () => {
   assert.deepEqual(reads, ['users/teacher-uid']);
 });
 
+test('maps only active, assigned Firestore students into the legacy table shape', () => {
+  const roster = mapFirestoreStudents([
+    { id: 'S001', classId: 'nilai-1', name: ' Student One ', active: true },
+    { id: 'S002', classId: 'nilai-2', name: 'Other Class', active: true },
+    { id: 'S003', classId: 'nilai-1', name: 'Inactive', active: false },
+    { id: 'S004', classId: 'nilai-1', name: 'Legacy Location', location: 'Elsewhere', active: true }
+  ], assignedClasses, 'Riverview');
+  assert.deepEqual(roster, [
+    { ID: 'S001', Name: 'Student One', Location: 'Riverview', Grade: 'Nilai 1', 'Date of Birth': '', Gender: '', 'Parent Name': '', 'Parent Phone': '', 'Parent Email': '', 'Tamil Name': '' },
+    { ID: 'S004', Name: 'Legacy Location', Location: 'Riverview', Grade: 'Nilai 1', 'Date of Birth': '', Gender: '', 'Parent Name': '', 'Parent Phone': '', 'Parent Email': '', 'Tamil Name': '' }
+  ]);
+});
+test('legacy roster requires at least one active student', () => {
+  assert.throws(() => requireStudentRoster([]), /No active student records/);
+  assert.deepEqual(requireStudentRoster([{ ID: 'S001' }]), [{ ID: 'S001' }]);
+});
+
 // Exercise the actual legacy handlers without workbook/network dependencies.
 function legacyHarness() {
   const elements = new Map();
@@ -74,11 +93,13 @@ test('legacy UI stays locked until validated session, rejects cached roles and o
   assert.equal(run('appState.currentUserRole'), null);
   assert.equal(element('main-app-container').inert, true);
   context.session = await resolve().result;
-  run('window.applyFirebaseSession(session)');
+  context.roster = mapFirestoreStudents([{ id: 'S001', name: 'Student One', classId: 'nilai-1', active: true }], assignedClasses, 'Riverview');
+  run('window.applyFirebaseSession(session, roster)');
   assert.equal(element('main-app-container').inert, false);
   assert.equal(element('main-class-select').value, 'nilai-1');
   assert.equal(element('main-class-select').disabled, true);
   assert.equal(element('main-class-select').options.length, 1);
+  assert.equal(run('appState.students[0].Name'), 'Student One');
   assert.equal(element('location-select').disabled, true);
   element('main-class-select').value = 'nilai-2';
   run('handleMainClassChange(); switchTab("Dashboard");');

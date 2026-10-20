@@ -16,6 +16,7 @@ const publicFiles = [
   'firebase-bootstrap.js',
   'auth.js',
   'auth-profile.mjs',
+  'auth-roster.mjs',
   'attendance_template.xlsx',
   'TBTA-2026-2027-RHS-Attendance-And-Homework-Template.xlsx'
 ];

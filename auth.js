@@ -6,8 +6,16 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
-import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import {
+  collection,
+  doc,
+  getDocFromServer,
+  getDocsFromServer,
+  query,
+  where
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { resolveAuthProfile } from "./auth-profile.mjs";
+import { mapFirestoreStudents, requireStudentRoster } from "./auth-roster.mjs";
 
 function getAuth() {
   const auth = window.TBTA_FIREBASE?.auth;
@@ -135,8 +143,19 @@ function installFirebaseGate() {
         const snapshot = await getDocFromServer(doc(window.TBTA_FIREBASE.db, collection, id));
         return snapshot.exists() ? snapshot.data() : null;
       });
+      errorBox.textContent = 'Loading your assigned student roster…';
+      const rawStudents = [];
+      const classIds = session.role === 'Teacher' ? session.assignedClassIds : null;
+      const idBatches = classIds ? Array.from({ length: Math.ceil(classIds.length / 30) }, (_, i) => classIds.slice(i * 30, (i + 1) * 30)) : [null];
+      for (const ids of idBatches) {
+        const studentsRef = collection(window.TBTA_FIREBASE.db, 'students');
+        const studentQuery = ids ? query(studentsRef, where('classId', 'in', ids)) : studentsRef;
+        const result = await getDocsFromServer(studentQuery);
+        rawStudents.push(...result.docs.map(student => ({ id: student.id, ...student.data() })));
+      }
+      const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
       if (request !== generation || getAuth().currentUser?.uid !== user.uid) return;
-      window.applyFirebaseSession(session);
+      window.applyFirebaseSession(session, roster);
       document.body.dataset.authenticated = 'true';
       document.getElementById('firebase-pin').value = '';
       errorBox.style.display = 'none';

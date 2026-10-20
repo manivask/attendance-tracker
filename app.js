@@ -156,8 +156,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // Firebase sessions are memory-only and originate from validated server profiles.
-window.applyFirebaseSession = function(session) {
+window.applyFirebaseSession = function(session, roster) {
     appState.currentUserRole = session;
+    if (session && Array.isArray(roster)) appState.students = roster;
     appState.currentFilter = "all";
     appState.searchQuery = "";
     if (session?.location) appState.currentLocation = session.location;
@@ -3611,3 +3612,4 @@ async function recoverAttendanceFromLog() {
     }
 }
 window.recoverAttendanceFromLog = recoverAttendanceFromLog;
+

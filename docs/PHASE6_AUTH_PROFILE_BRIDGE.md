@@ -12,8 +12,10 @@ Attendance, homework, tests, workbook loading, and local persistence retain thei
 
 ## Validation
 
-Run `npm test` (Node 20+): profile/assignment validation and legacy handler tests, followed by the static web build. No dependency installation is needed for these tests.
+After profile and class validation, the web app reads `/students` from the Firestore server, constrained by the teacher's assigned `classId` values. It maps active records into the existing student-table shape and fails with an administrator-facing message if no active assigned students are found. Required fields follow `docs/PHASE4_FIRESTORE_DATA_MODEL.md`; student document IDs should use the existing stable roster ID. No student documents are created by the app.
 
-Additional browser validation used the built site with mocked Firebase modules: teacher01 sign-in unlocked Nilai 1 / Riverview / room 118, the class picker contained one disabled option, logout locked the portal and returned to sign-in, and an empty assignment kept the portal locked with a visible error and working sign-out. There were no browser page errors.
+Run `npm test` (Node 20+): profile, assignment, roster mapping, and legacy handler tests, followed by the static web build. No dependency installation is needed for these tests.
 
-Live Firebase credentials were not used. After deployment, verify teacher01's restored and fresh login against the published rules, and confirm an unassigned class document read is denied. This implementation does not deploy Firestore rules.
+Additional browser validation used the built site with mocked Firebase modules: teacher01 sign-in loaded an assigned student roster and unlocked Nilai 1 / Riverview / room 118, the class picker contained one disabled option, logout locked the portal and returned to sign-in, and an empty class assignment kept the portal locked with a visible error and working sign-out. There were no browser page errors.
+
+Live Firebase credentials were not used. The Firestore `students` collection must be populated with active docs for `classId: "nilai-1"` before teacher01 can see students; deploy the app after that import. Then verify fresh and restored login against the published rules, and confirm a query for an unassigned class is denied. This implementation does not deploy Firestore rules or write student documents.
