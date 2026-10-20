@@ -197,6 +197,22 @@ function getAssignedTeacherNames(session, legacyTeachers = []) {
         .join(" & ");
 }
 
+function getFirebaseAssignedTeacherRoster(session) {
+    const cls = session?.classes?.find(item => item.id === session.classId) || session?.classes?.[0];
+    const names = Array.isArray(cls?.teacherNames) ? cls.teacherNames : [];
+    const seen = new Set();
+    return names
+        .filter(name => typeof name === "string" && name.trim())
+        .map(name => name.trim())
+        .filter(name => {
+            const key = name.toLocaleLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .map(name => ({ ID: name, Name: name, Location: cls.location, Grade: cls.name, "Class Assignment": cls.name }));
+}
+
 // React to live background updates from Google Drive
 window.addEventListener("attendance-remote-updated", () => {
     renderList();
@@ -1971,6 +1987,8 @@ function renderList() {
     const isLocked = appState.lockedDates.includes(activeDate);
     const isHomeworkMode = (tab === "Students" && appState.currentMode === "Homework");
     const isTestMode = (tab === "Students" && appState.currentMode === "Test");
+    const isFirebaseTeacherRoster = window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher" && tab === "Teachers";
+    const firebaseTeacherRoster = isFirebaseTeacherRoster ? getFirebaseAssignedTeacherRoster(appState.currentUserRole) : [];
 
     // Sync mode picker
     const mainModePicker = document.getElementById("main-mode-picker");
@@ -1997,7 +2015,9 @@ function renderList() {
     let totalTeachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation).length;
     if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
         totalStudentsAtLoc = appState.students.filter(s => s.Location === appState.currentLocation && s.Grade === appState.currentUserRole.grade).length;
-        totalTeachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation && t["Class Assignment"] === appState.currentUserRole.grade).length;
+        totalTeachersAtLoc = isFirebaseTeacherRoster
+            ? firebaseTeacherRoster.length
+            : appState.teachers.filter(t => t.Location === appState.currentLocation && t["Class Assignment"] === appState.currentUserRole.grade).length;
     }
 
     badgeStudents.textContent = totalStudentsAtLoc;
@@ -2078,8 +2098,10 @@ function renderList() {
     }
 
     const allItems = tab === "Students" ? appState.students : appState.teachers;
-    let items = allItems.filter(item => item.Location === appState.currentLocation);
-    if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
+    let items = isFirebaseTeacherRoster
+        ? firebaseTeacherRoster
+        : allItems.filter(item => item.Location === appState.currentLocation);
+    if (!isFirebaseTeacherRoster && appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
         if (tab === "Students") {
             items = items.filter(item => item.Grade === appState.currentUserRole.grade);
         } else if (tab === "Teachers") {
@@ -2158,14 +2180,18 @@ function renderList() {
             if (stat) stat.textContent = marks.length ? `${(marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(1)} / 100` : "—";
         });
     } else {
-        currentSheetTitle.textContent = tab === "Students" ? "Students List" : "Teachers List";
-        if (statusFiltersGroup) statusFiltersGroup.style.display = "flex";
+        currentSheetTitle.textContent = isFirebaseTeacherRoster ? "Assigned Teachers" : tab === "Students" ? "Students List" : "Teachers List";
+        if (statusFiltersGroup) statusFiltersGroup.style.display = isFirebaseTeacherRoster ? "none" : "flex";
         if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
-        if (selectionStatsGroup) selectionStatsGroup.style.display = "flex";
+        if (selectionStatsGroup) selectionStatsGroup.style.display = isFirebaseTeacherRoster ? "none" : "flex";
         if (homeworkStatsGroup) homeworkStatsGroup.style.display = "none";
         if (testStatsGroup) testStatsGroup.style.display = "none";
 
-        tableHeadersRow.innerHTML = `
+        tableHeadersRow.innerHTML = isFirebaseTeacherRoster ? `
+            <th>Name</th>
+            <th>Assigned Class</th>
+            <th class="center-align">Status</th>
+        ` : `
             <th style="width: 80px;">ID</th>
             <th>Name</th>
             ${!isTeacher ? `<th id="th-info">${tab === "Students" ? "Grade" : "Class Assignment"}</th>` : ``}
@@ -2249,6 +2275,15 @@ function renderList() {
             `;
             attendanceTbody.appendChild(tr);
 
+        } else if (isFirebaseTeacherRoster) {
+            filteredCount++;
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${item.Name}</td>
+                <td>${item["Class Assignment"]}</td>
+                <td class="center-align"><span class="locked-cell present">Assigned</span></td>
+            `;
+            attendanceTbody.appendChild(tr);
         } else {
             const status = appState.attendance[tab][activeDate]?.[item.ID];
 
