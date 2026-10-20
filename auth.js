@@ -40,7 +40,7 @@ function friendlyAuthError(error) {
     case "auth/invalid-credential":
     case "auth/user-not-found":
     case "auth/wrong-password":
-      return "Teacher ID or PIN is incorrect.";
+      return "Teacher ID or password is incorrect.";
     case "auth/too-many-requests":
       return "Too many login attempts. Please wait and try again.";
     case "auth/network-request-failed":
@@ -50,10 +50,10 @@ function friendlyAuthError(error) {
   }
 }
 
-export async function tbtaSignInWithTeacherId(teacherId, pin) {
-  const cleanPin = String(pin || "").trim();
-  if (!/^\d{6}$/.test(cleanPin)) throw new Error("Enter your 6-digit PIN.");
-  return signInWithEmailAndPassword(getAuth(), teacherIdToEmail(teacherId), cleanPin);
+export async function tbtaSignInWithTeacherId(teacherId, password) {
+  const cleanPassword = String(password || "");
+  if (cleanPassword.length < 6) throw new Error("Enter your password (at least 6 characters).");
+  return signInWithEmailAndPassword(getAuth(), teacherIdToEmail(teacherId), cleanPassword);
 }
 
 export async function tbtaSignOut() {
@@ -80,13 +80,13 @@ function installFirebaseGate() {
           placeholder="Example: teacher01" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:1rem;">
       </div>
       <div class="form-group" style="margin-bottom:14px;">
-        <label for="firebase-pin" style="font-weight:600; display:block; margin-bottom:6px;">🔑 6-digit PIN</label>
-        <input id="firebase-pin" name="password" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="current-password" required
-          placeholder="••••••" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:1.25rem; letter-spacing:.18rem; text-align:center;">
+        <label for="firebase-pin" style="font-weight:600; display:block; margin-bottom:6px;">🔑 Password</label>
+        <input id="firebase-pin" name="password" type="password" minlength="6" maxlength="128" autocomplete="current-password" required
+          placeholder="Enter your password" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:1rem;">
       </div>
       <button id="firebase-login-btn" class="btn btn-primary" type="submit" style="width:100%; padding:12px; font-weight:700; justify-content:center;">Sign In</button>
       <div id="firebase-login-error" role="alert" style="display:none; margin-top:10px; color:var(--danger-color); font-weight:600; font-size:.85rem;"></div>
-      <p style="margin:14px 0 0; color:var(--text-muted); font-size:.78rem; text-align:center;">Use the Teacher ID and 6-digit PIN provided by the school administrator.</p>
+      <p style="margin:14px 0 0; color:var(--text-muted); font-size:.78rem; text-align:center;">Use the Teacher ID and password provided by the school administrator.</p>
     </form>`;
 
   const form = document.getElementById("firebase-login-form");
@@ -103,7 +103,7 @@ function installFirebaseGate() {
         document.getElementById("firebase-pin").value
       );
     } catch (error) {
-      errorBox.textContent = error?.message === "Enter your 6-digit PIN." ? error.message : friendlyAuthError(error);
+      errorBox.textContent = error?.message === "Enter your password (at least 6 characters)." ? error.message : friendlyAuthError(error);
       errorBox.style.display = "block";
     } finally {
       button.disabled = false;
