@@ -27,7 +27,7 @@ service cloud.firestore {
 
     function assignedTo(classId) {
       return isTeacher()
-        && classId in userDoc().data.classIds;
+        && classId in userDoc().data.assignedClassIds;
     }
 
     // User profiles are provisioned by an administrator, never by the client.
@@ -51,7 +51,7 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
       allow write: if false;
     }
 
@@ -59,16 +59,16 @@ service cloud.firestore {
     // inside assigned classes and must stamp their own Firebase UID on writes.
     match /attendance/{attendanceId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
 
       allow create: if isAdmin()
         || (isTeacher()
-          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.classId in userDoc().data.assignedClassIds
           && request.resource.data.markedByUid == request.auth.uid);
 
       allow update: if isAdmin()
         || (isTeacher()
-          && resource.data.classId in userDoc().data.classIds
+          && resource.data.classId in userDoc().data.assignedClassIds
           && request.resource.data.classId == resource.data.classId
           && request.resource.data.studentId == resource.data.studentId
           && request.resource.data.date == resource.data.date
@@ -88,36 +88,36 @@ service cloud.firestore {
 
     match /homework/{homeworkId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
       allow create, update: if isAdmin()
         || (isTeacher()
-          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.classId in userDoc().data.assignedClassIds
           && request.resource.data.updatedByUid == request.auth.uid);
       allow delete: if isAdmin();
     }
 
     match /tests/{testId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
       allow write: if isAdmin();
     }
 
     match /testResults/{resultId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
       allow create, update: if isAdmin()
         || (isTeacher()
-          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.classId in userDoc().data.assignedClassIds
           && request.resource.data.updatedByUid == request.auth.uid);
       allow delete: if isAdmin();
     }
 
     match /classSubmissions/{submissionId} {
       allow read: if isAdmin()
-        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+        || (isTeacher() && resource.data.classId in userDoc().data.assignedClassIds);
       allow create, update: if isAdmin()
         || (isTeacher()
-          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.classId in userDoc().data.assignedClassIds
           && request.resource.data.submittedByUid == request.auth.uid);
       allow delete: if isAdmin();
     }
