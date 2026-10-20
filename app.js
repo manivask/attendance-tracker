@@ -183,6 +183,20 @@ function populateAssignedClasses() {
     select.disabled = session.classes.length === 1;
 }
 
+function getAssignedTeacherNames(session, legacyTeachers = []) {
+    const cls = session?.classes?.find(item => item.id === session.classId) || session?.classes?.[0];
+    const classTeacherNames = Array.isArray(cls?.teacherNames)
+        ? cls.teacherNames.filter(name => typeof name === "string" && name.trim()).map(name => name.trim())
+        : [];
+    if (classTeacherNames.length) return classTeacherNames.join(" & ");
+
+    return legacyTeachers
+        .filter(teacher => teacher.Location === session?.location && teacher["Class Assignment"] === session?.grade)
+        .map(teacher => teacher.Name)
+        .filter(name => typeof name === "string" && name.trim())
+        .join(" & ");
+}
+
 // React to live background updates from Google Drive
 window.addEventListener("attendance-remote-updated", () => {
     renderList();
@@ -1970,10 +1984,7 @@ function renderList() {
     const teachersInfoDiv = document.getElementById("assigned-teachers-info");
     if (teachersInfoDiv) {
         if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
-            const grade = appState.currentUserRole.grade;
-            const loc = appState.currentUserRole.location;
-            const assigned = appState.teachers.filter(t => t.Location === loc && t["Class Assignment"] === grade);
-            const teacherNames = assigned.map(t => t.Name).join(" & ");
+            const teacherNames = getAssignedTeacherNames(appState.currentUserRole, appState.teachers);
             teachersInfoDiv.textContent = `Assigned Teachers: ${teacherNames || "None"}`;
             teachersInfoDiv.style.display = "block";
         } else {

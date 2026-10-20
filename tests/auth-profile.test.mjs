@@ -6,7 +6,7 @@ import { resolveAuthProfile } from '../auth-profile.mjs';
 import { mapFirestoreStudents, requireStudentRoster } from '../auth-roster.mjs';
 
 const teacher = { role: 'teacher', active: true, location: 'Riverview', assignedClassIds: ['nilai-1'] };
-const cls = { name: 'Nilai 1', location: 'Riverview', room: '118', active: true };
+const cls = { name: 'Nilai 1', location: 'Riverview', room: '118', active: true, teacherNames: [' Kohila Kandasamy ', 'Sharmila Mathivannan'] };
 const assignedClasses = [{ id: 'nilai-1', ...cls }];
 function resolve(profile = teacher, classes = { 'nilai-1': cls }) {
   const reads = [];
@@ -24,6 +24,7 @@ test('teacher01 resolves only its profile and assigned class', async () => {
   assert.equal(session.location, 'Riverview');
   assert.equal(session.role, 'Teacher');
   assert.equal(session.classes[0].room, '118');
+  assert.deepEqual(session.classes[0].teacherNames, ['Kohila Kandasamy', 'Sharmila Mathivannan']);
 });
 
 for (const [label, profile] of Object.entries({
@@ -70,6 +71,11 @@ test('maps only active, assigned Firestore students into the legacy table shape'
 test('legacy roster requires at least one active student', () => {
   assert.throws(() => requireStudentRoster([]), /No active student records/);
   assert.deepEqual(requireStudentRoster([{ ID: 'S001' }]), [{ ID: 'S001' }]);
+});
+
+test('assigned teacher label uses class teacher names from Firestore', () => {
+  const { run } = legacyHarness();
+  assert.equal(run('getAssignedTeacherNames({ classId: "nilai-1", grade: "Nilai 1", location: "Riverview", classes: [{ id: "nilai-1", teacherNames: ["Kohila Kandasamy", "Sharmila Mathivannan"] }] }, [])'), 'Kohila Kandasamy & Sharmila Mathivannan');
 });
 
 // Exercise the actual legacy handlers without workbook/network dependencies.

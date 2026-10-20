@@ -16,7 +16,10 @@ export async function resolveAuthProfile(uid, readDocument) {
     if (!cls || cls.active !== true || typeof cls.name !== 'string' || !cls.name.trim() || cls.location !== profile.location) {
       throw new Error('An assigned class is missing, inactive, or has a different location. Contact the administrator.');
     }
-    return { id, name: cls.name.trim(), location: cls.location, room: String(cls.room ?? '') };
+    const teacherNames = Array.isArray(cls.teacherNames)
+      ? cls.teacherNames.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim())
+      : [];
+    return { id, name: cls.name.trim(), location: cls.location, room: String(cls.room ?? ''), teacherNames };
   }));
   if (new Set(classes.map(cls => cls.name)).size !== classes.length) throw new Error('Assigned class names are ambiguous. Contact the administrator.');
   return { uid, name, role: 'Teacher', location: profile.location, assignedClassIds: [...ids], classes, classId: classes[0].id, grade: classes[0].name };
