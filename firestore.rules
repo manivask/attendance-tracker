@@ -2,8 +2,139 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Phase 3 safety baseline: the web/mobile client has no Firestore access yet.
-    // Phase 5/6 will add Firebase Authentication and role-based access rules.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function activeUser() {
+      return signedIn()
+        && userDoc().data.active == true;
+    }
+
+    function isAdmin() {
+      return activeUser()
+        && userDoc().data.role == 'admin';
+    }
+
+    function isTeacher() {
+      return activeUser()
+        && userDoc().data.role == 'teacher';
+    }
+
+    function assignedTo(classId) {
+      return isTeacher()
+        && classId in userDoc().data.classIds;
+    }
+
+    // User profiles are provisioned by an administrator, never by the client.
+    // A signed-in user may read only their own profile; admins may read all.
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Reference data. Teachers see only assigned classes. Admins see all.
+    match /classes/{classId} {
+      allow read: if isAdmin() || assignedTo(classId);
+      allow write: if false;
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /students/{studentId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+      allow write: if false;
+    }
+
+    // Attendance is one document per date/class/student. Teachers can work only
+    // inside assigned classes and must stamp their own Firebase UID on writes.
+    match /attendance/{attendanceId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+
+      allow create: if isAdmin()
+        || (isTeacher()
+          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.markedByUid == request.auth.uid);
+
+      allow update: if isAdmin()
+        || (isTeacher()
+          && resource.data.classId in userDoc().data.classIds
+          && request.resource.data.classId == resource.data.classId
+          && request.resource.data.studentId == resource.data.studentId
+          && request.resource.data.date == resource.data.date
+          && request.resource.data.markedByUid == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    match /teacherAttendance/{attendanceId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.teacherUid == request.auth.uid);
+      allow create, update: if isAdmin()
+        || (isTeacher()
+          && request.resource.data.teacherUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /homework/{homeworkId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+      allow create, update: if isAdmin()
+        || (isTeacher()
+          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.updatedByUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /tests/{testId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+      allow write: if isAdmin();
+    }
+
+    match /testResults/{resultId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+      allow create, update: if isAdmin()
+        || (isTeacher()
+          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.updatedByUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /classSubmissions/{submissionId} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.classId in userDoc().data.classIds);
+      allow create, update: if isAdmin()
+        || (isTeacher()
+          && request.resource.data.classId in userDoc().data.classIds
+          && request.resource.data.submittedByUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if activeUser();
+      allow write: if isAdmin();
+    }
+
+    match /auditEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if activeUser()
+        && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Everything not explicitly covered above remains closed.
     match /{document=**} {
       allow read, write: if false;
     }
