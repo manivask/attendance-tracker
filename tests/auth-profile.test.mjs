@@ -85,6 +85,31 @@ test('Firebase Teachers tab roster comes from the selected assigned class', () =
   assert.ok(roster.every(teacher => teacher['Class Assignment'] === 'Nilai 2'));
 });
 
+test('admin profile loads active class names for the Firebase teacher directory', async () => {
+  const session = await resolveAuthProfile('admin-uid', async (collection, id) => {
+    assert.equal(collection, 'users');
+    assert.equal(id, 'admin-uid');
+    return { role: 'admin', active: true, name: 'Admin' };
+  }, async collection => {
+    assert.equal(collection, 'classes');
+    return [
+      { id: 'nilai-1', name: 'Nilai 1', location: 'Riverview', room: '118', active: true, teacherNames: ['Teacher One'] },
+      { id: 'inactive', name: 'Inactive Class', location: 'Riverview', active: false, teacherNames: ['Hidden Teacher'] }
+    ];
+  });
+  assert.equal(session.role, 'Principal');
+  assert.deepEqual(session.classes.map(cls => cls.name), ['Nilai 1']);
+  assert.deepEqual(session.classes[0].teacherNames, ['Teacher One']);
+});
+
+test('Firebase admin teacher roster combines class assignments without duplicate names', () => {
+  const { run } = legacyHarness();
+  const roster = JSON.parse(run('JSON.stringify(getFirebaseAssignedTeacherRoster({ role: "Principal", classes: [{ name: "Nilai 1", location: "Riverview", teacherNames: ["Teacher A"] }, { name: "Nilai 2", location: "Riverview", teacherNames: [" teacher a ", "Teacher B"] }] }, "Riverview"))'));
+  assert.deepEqual(roster.map(teacher => teacher.Name), ['Teacher A', 'Teacher B']);
+  assert.equal(roster[0]['Class Assignment'], 'Nilai 1, Nilai 2');
+  assert.equal(roster[1]['Class Assignment'], 'Nilai 2');
+});
+
 // Exercise the actual legacy handlers without workbook/network dependencies.
 function legacyHarness() {
   const elements = new Map();
@@ -107,7 +132,9 @@ test('legacy UI stays locked until validated session, rejects cached roles and o
   assert.equal(element('main-app-container').inert, true);
   context.session = await resolve().result;
   context.roster = mapFirestoreStudents([{ id: 'S001', name: 'Student One', classId: 'nilai-1', active: true }], assignedClasses, 'Riverview');
+  run('appState.currentMode = "Homework"');
   run('window.applyFirebaseSession(session, roster)');
+  assert.equal(run('appState.currentMode'), 'Attendance');
   assert.equal(element('main-app-container').inert, false);
   assert.equal(element('main-class-select').value, 'nilai-1');
   assert.equal(element('main-class-select').disabled, true);
