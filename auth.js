@@ -139,9 +139,12 @@ function installFirebaseGate() {
     errorBox.textContent = 'Loading your profile and assigned classes…';
     errorBox.style.display = 'block';
     try {
-      const session = await resolveAuthProfile(user.uid, async (collection, id) => {
-        const snapshot = await getDocFromServer(doc(window.TBTA_FIREBASE.db, collection, id));
+      const session = await resolveAuthProfile(user.uid, async (collectionName, id) => {
+        const snapshot = await getDocFromServer(doc(window.TBTA_FIREBASE.db, collectionName, id));
         return snapshot.exists() ? snapshot.data() : null;
+      }, async (collectionName) => {
+        const snapshot = await getDocsFromServer(collection(window.TBTA_FIREBASE.db, collectionName));
+        return snapshot.docs.map(item => ({ ...item.data(), id: item.id }));
       });
       errorBox.textContent = 'Loading your assigned student roster…';
       const rawStudents = [];
