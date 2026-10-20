@@ -156,8 +156,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // Firebase sessions are memory-only and originate from validated server profiles.
-window.applyFirebaseSession = function(session, roster) {
+window.applyFirebaseSession = function(session, roster, attendance) {
     appState.currentUserRole = session;
+    if (window.TBTA_FIREBASE_REQUIRED) {
+        appState.attendance = session && attendance
+            ? attendance
+            : { Teachers: {}, Students: {} };
+        const latestImportedDate = Object.keys(appState.attendance.Students).sort().at(-1);
+        if (session && latestImportedDate && (!appState.activeDate || appState.activeDate > latestImportedDate)) {
+            appState.activeDate = latestImportedDate;
+        }
+    }
     if (session && Array.isArray(roster)) appState.students = roster;
     if (session) appState.currentMode = "Attendance";
     appState.currentFilter = "all";
@@ -2191,7 +2200,7 @@ function renderList() {
             if (stat) stat.textContent = marks.length ? `${(marks.reduce((sum, mark) => sum + mark, 0) / marks.length).toFixed(1)} / 100` : "—";
         });
     } else {
-        currentSheetTitle.textContent = isFirebaseTeacherRoster ? "Assigned Teachers" : tab === "Students" ? "Students List" : "Teachers List";
+        currentSheetTitle.textContent = isFirebaseTeacherRoster ? `Assigned Teachers — ${formatDateForDisplay(activeDate)}` : tab === "Students" ? "Students List" : "Teachers List";
         if (statusFiltersGroup) statusFiltersGroup.style.display = isFirebaseTeacherRoster ? "none" : "flex";
         if (homeworkActionsGroup) homeworkActionsGroup.style.display = "none";
         if (selectionStatsGroup) selectionStatsGroup.style.display = isFirebaseTeacherRoster ? "none" : "flex";
@@ -2289,19 +2298,21 @@ function renderList() {
         } else if (isFirebaseTeacherRoster) {
             filteredCount++;
             const tr = document.createElement("tr");
+            const status = appState.attendance.Teachers[activeDate]?.[item.ID];
+            const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : "No record";
             tr.innerHTML = `
                 <td>${item.Name}</td>
                 <td>${item["Class Assignment"]}</td>
-                <td class="center-align"><span class="locked-cell present">Assigned</span></td>
+                <td class="center-align"><span class="locked-cell ${status || "unmarked"}">${label}</span></td>
             `;
             attendanceTbody.appendChild(tr);
         } else {
             const status = appState.attendance[tab][activeDate]?.[item.ID];
 
-            if (appState.currentFilter === "present" && status !== "present") return;
-            if (appState.currentFilter === "late" && status !== "late") return;
-            if (appState.currentFilter === "absent" && status !== "absent") return;
-            if (appState.currentFilter === "unmarked" && status) return;
+            if (!isFirebaseTeacherRoster && appState.currentFilter === "present" && status !== "present") return;
+            if (!isFirebaseTeacherRoster && appState.currentFilter === "late" && status !== "late") return;
+            if (!isFirebaseTeacherRoster && appState.currentFilter === "absent" && status !== "absent") return;
+            if (!isFirebaseTeacherRoster && appState.currentFilter === "unmarked" && status) return;
 
             filteredCount++;
             const tr = document.createElement("tr");
