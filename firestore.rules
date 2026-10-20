@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Phase 3 safety baseline: the web/mobile client has no Firestore access yet.
+    // Phase 5/6 will add Firebase Authentication and role-based access rules.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
