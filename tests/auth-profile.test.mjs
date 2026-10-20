@@ -78,6 +78,13 @@ test('assigned teacher label uses class teacher names from Firestore', () => {
   assert.equal(run('getAssignedTeacherNames({ classId: "nilai-1", grade: "Nilai 1", location: "Riverview", classes: [{ id: "nilai-1", teacherNames: ["Kohila Kandasamy", "Sharmila Mathivannan"] }] }, [])'), 'Kohila Kandasamy & Sharmila Mathivannan');
 });
 
+test('Firebase Teachers tab roster comes from the selected assigned class', () => {
+  const { run } = legacyHarness();
+  const roster = JSON.parse(run('JSON.stringify(getFirebaseAssignedTeacherRoster({ role: "Teacher", classId: "nilai-2", classes: [{ id: "nilai-1", name: "Nilai 1", location: "Riverview", teacherNames: ["Wrong Class Teacher"] }, { id: "nilai-2", name: "Nilai 2", location: "Riverview", teacherNames: [" Teacher A ", "Teacher B", "teacher a"] }] }))'));
+  assert.deepEqual(roster.map(teacher => teacher.Name), ['Teacher A', 'Teacher B']);
+  assert.ok(roster.every(teacher => teacher['Class Assignment'] === 'Nilai 2'));
+});
+
 // Exercise the actual legacy handlers without workbook/network dependencies.
 function legacyHarness() {
   const elements = new Map();
