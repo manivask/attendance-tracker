@@ -15,7 +15,7 @@ import {
   where
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { resolveAuthProfile } from "./auth-profile.mjs";
-import { mapFirestoreStudents, requireStudentRoster } from "./auth-roster.mjs";
+import { mapFirestoreAttendance, mapFirestoreStudents, requireStudentRoster } from "./auth-roster.mjs";
 
 function getAuth() {
   const auth = window.TBTA_FIREBASE?.auth;
@@ -157,8 +157,28 @@ function installFirebaseGate() {
         rawStudents.push(...result.docs.map(student => ({ id: student.id, ...student.data() })));
       }
       const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
+      errorBox.textContent = 'Loading attendance history…';
+      const attendanceClassIds = session.role === 'Teacher'
+        ? session.assignedClassIds
+        : session.classes.map(cls => cls.id);
+      const studentAttendance = [];
+      const attendanceBatches = Array.from({ length: Math.ceil(attendanceClassIds.length / 30) }, (_, i) => attendanceClassIds.slice(i * 30, (i + 1) * 30));
+      for (const ids of attendanceBatches) {
+        if (!ids.length) continue;
+        const attendanceRef = collection(window.TBTA_FIREBASE.db, 'attendance');
+        const attendanceQuery = query(attendanceRef, where('classId', 'in', ids));
+        const result = await getDocsFromServer(attendanceQuery);
+        studentAttendance.push(...result.docs.map(record => ({ id: record.id, ...record.data() })));
+      }
+      const teacherAttendanceRef = collection(window.TBTA_FIREBASE.db, 'teacherAttendance');
+      const teacherAttendanceQuery = session.role === 'Teacher'
+        ? query(teacherAttendanceRef, where('teacherUid', '==', user.uid))
+        : teacherAttendanceRef;
+      const teacherAttendanceResult = await getDocsFromServer(teacherAttendanceQuery);
+      const teacherAttendance = teacherAttendanceResult.docs.map(record => ({ id: record.id, ...record.data() }));
+      const attendance = mapFirestoreAttendance(studentAttendance, teacherAttendance);
       if (request !== generation || getAuth().currentUser?.uid !== user.uid) return;
-      window.applyFirebaseSession(session, roster);
+      window.applyFirebaseSession(session, roster, attendance);
       document.body.dataset.authenticated = 'true';
       document.getElementById('firebase-pin').value = '';
       errorBox.style.display = 'none';
