@@ -13,6 +13,7 @@ const publicFiles = [
   'manifest.json',
   'firebase-config.js',
   'firebase.js',
+  'auth.js',
   'attendance_template.xlsx',
   'TBTA-2026-2027-RHS-Attendance-And-Homework-Template.xlsx'
 ];
