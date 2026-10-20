@@ -159,6 +159,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 window.applyFirebaseSession = function(session, roster) {
     appState.currentUserRole = session;
     if (session && Array.isArray(roster)) appState.students = roster;
+    if (session) appState.currentMode = "Attendance";
     appState.currentFilter = "all";
     appState.searchQuery = "";
     if (session?.location) appState.currentLocation = session.location;
@@ -197,20 +198,27 @@ function getAssignedTeacherNames(session, legacyTeachers = []) {
         .join(" & ");
 }
 
-function getFirebaseAssignedTeacherRoster(session) {
-    const cls = session?.classes?.find(item => item.id === session.classId) || session?.classes?.[0];
-    const names = Array.isArray(cls?.teacherNames) ? cls.teacherNames : [];
-    const seen = new Set();
-    return names
-        .filter(name => typeof name === "string" && name.trim())
-        .map(name => name.trim())
-        .filter(name => {
-            const key = name.toLocaleLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
-        .map(name => ({ ID: name, Name: name, Location: cls.location, Grade: cls.name, "Class Assignment": cls.name }));
+function getFirebaseAssignedTeacherRoster(session, location = "") {
+    const classes = session?.role === "Teacher"
+        ? [session.classes?.find(item => item.id === session.classId) || session.classes?.[0]].filter(Boolean)
+        : (session?.classes || []).filter(cls => !location || cls.location === location);
+    const teachersByName = new Map();
+    classes.forEach(cls => {
+        const names = Array.isArray(cls.teacherNames) ? cls.teacherNames : [];
+        names.filter(name => typeof name === "string" && name.trim()).forEach(name => {
+            const cleanName = name.trim();
+            const key = cleanName.toLocaleLowerCase();
+            if (!teachersByName.has(key)) {
+                teachersByName.set(key, { ID: cleanName, Name: cleanName, Location: cls.location, Grade: cls.name, "Class Assignment": [] });
+            }
+            const teacher = teachersByName.get(key);
+            if (!teacher["Class Assignment"].includes(cls.name)) teacher["Class Assignment"].push(cls.name);
+        });
+    });
+    return [...teachersByName.values()].map(teacher => ({
+        ...teacher,
+        "Class Assignment": teacher["Class Assignment"].join(", ")
+    }));
 }
 
 // React to live background updates from Google Drive
@@ -1987,9 +1995,9 @@ function renderList() {
     const isLocked = appState.lockedDates.includes(activeDate);
     const isHomeworkMode = (tab === "Students" && appState.currentMode === "Homework");
     const isTestMode = (tab === "Students" && appState.currentMode === "Test");
-    const hasFirebaseTeacherSession = window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher";
-    const isFirebaseTeacherRoster = hasFirebaseTeacherSession && tab === "Teachers";
-    const firebaseTeacherRoster = hasFirebaseTeacherSession ? getFirebaseAssignedTeacherRoster(appState.currentUserRole) : [];
+    const hasFirebaseRosterSession = window.TBTA_FIREBASE_REQUIRED && (appState.currentUserRole?.role === "Teacher" || isAdminRole(appState.currentUserRole?.role));
+    const isFirebaseTeacherRoster = hasFirebaseRosterSession && tab === "Teachers";
+    const firebaseTeacherRoster = hasFirebaseRosterSession ? getFirebaseAssignedTeacherRoster(appState.currentUserRole, appState.currentLocation) : [];
 
     // Sync mode picker
     const mainModePicker = document.getElementById("main-mode-picker");
@@ -2016,9 +2024,11 @@ function renderList() {
     let totalTeachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation).length;
     if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
         totalStudentsAtLoc = appState.students.filter(s => s.Location === appState.currentLocation && s.Grade === appState.currentUserRole.grade).length;
-        totalTeachersAtLoc = hasFirebaseTeacherSession
+        totalTeachersAtLoc = hasFirebaseRosterSession
             ? firebaseTeacherRoster.length
             : appState.teachers.filter(t => t.Location === appState.currentLocation && t["Class Assignment"] === appState.currentUserRole.grade).length;
+    } else if (hasFirebaseRosterSession) {
+        totalTeachersAtLoc = firebaseTeacherRoster.length;
     }
 
     badgeStudents.textContent = totalStudentsAtLoc;
