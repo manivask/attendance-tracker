@@ -6,6 +6,9 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 
+import { doc, getDocFromServer } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { resolveAuthProfile } from "./auth-profile.mjs";
+
 function getAuth() {
   const auth = window.TBTA_FIREBASE?.auth;
   if (!auth) throw new Error("Firebase Authentication is not ready.");
@@ -100,15 +103,50 @@ function installFirebaseGate() {
     }
   });
 
-  tbtaObserveAuth((user) => {
-    if (user) {
-      overlay.style.display = "none";
-      document.body.dataset.authenticated = "true";
-      window.dispatchEvent(new CustomEvent("tbta-user-signed-in", { detail: { uid: user.uid } }));
-    } else {
-      overlay.style.display = "flex";
-      document.body.dataset.authenticated = "false";
-      window.dispatchEvent(new CustomEvent("tbta-user-signed-out"));
+  const signOutButton = document.createElement('button');
+  signOutButton.type = 'button';
+  signOutButton.className = 'btn btn-secondary';
+  signOutButton.textContent = 'Sign out';
+  signOutButton.hidden = true;
+  card.appendChild(signOutButton);
+  signOutButton.addEventListener('click', () => tbtaSignOut().catch(() => {
+    errorBox.textContent = 'Unable to sign out. Check your connection and try again.';
+    errorBox.style.display = 'block';
+  }));
+
+  let generation = 0;
+  tbtaObserveAuth(async (user) => {
+    const request = ++generation;
+    window.applyFirebaseSession(null);
+    document.body.dataset.authenticated = 'false';
+    signOutButton.hidden = !user;
+    form.hidden = !!user;
+    errorBox.style.display = 'none';
+    // Keep status outside the hidden login form for failed profile loads.
+    card.appendChild(errorBox);
+    if (!user) {
+      window.dispatchEvent(new CustomEvent('tbta-user-signed-out'));
+      return;
+    }
+    errorBox.textContent = 'Loading your profile and assigned classes…';
+    errorBox.style.display = 'block';
+    try {
+      const session = await resolveAuthProfile(user.uid, async (collection, id) => {
+        const snapshot = await getDocFromServer(doc(window.TBTA_FIREBASE.db, collection, id));
+        return snapshot.exists() ? snapshot.data() : null;
+      });
+      if (request !== generation || getAuth().currentUser?.uid !== user.uid) return;
+      window.applyFirebaseSession(session);
+      document.body.dataset.authenticated = 'true';
+      document.getElementById('firebase-pin').value = '';
+      errorBox.style.display = 'none';
+      window.dispatchEvent(new CustomEvent('tbta-user-signed-in', { detail: { uid: user.uid } }));
+    } catch (error) {
+      if (request !== generation) return;
+      errorBox.textContent = error?.code
+        ? 'Unable to read your profile or assigned classes. Check your connection and contact the administrator.'
+        : error.message;
+      errorBox.style.display = 'block';
     }
   });
 }

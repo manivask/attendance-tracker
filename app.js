@@ -39,6 +39,7 @@ function syncClassRoomsFromTeachers() {
             CLASS_ROOMS[cls] = String(t.Room).trim();
         }
     });
+    appState.currentUserRole?.classes?.forEach(cls => { CLASS_ROOMS[cls.name] = cls.room; });
     if (typeof updateClassDropdownOptions === "function") {
         updateClassDropdownOptions();
     }
@@ -154,6 +155,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderList();
 });
 
+// Firebase sessions are memory-only and originate from validated server profiles.
+window.applyFirebaseSession = function(session) {
+    appState.currentUserRole = session;
+    appState.currentFilter = "all";
+    appState.searchQuery = "";
+    if (session?.location) appState.currentLocation = session.location;
+    session?.classes?.forEach(cls => { CLASS_ROOMS[cls.name] = cls.room; });
+    checkAccessGate();
+    if (session) switchTab("Students");
+    updateDateTimeAndRules();
+    renderList();
+};
+
+function populateAssignedClasses() {
+    const session = appState.currentUserRole;
+    if (!window.TBTA_FIREBASE_REQUIRED || session?.role !== "Teacher") return;
+    const select = document.getElementById("main-class-select");
+    select.replaceChildren(...session.classes.map(cls => {
+        const option = document.createElement("option");
+        option.value = cls.id;
+        option.textContent = `${cls.name} (Room ${cls.room || "—"})`;
+        return option;
+    }));
+    select.value = session.classId;
+    select.disabled = session.classes.length === 1;
+}
+
 // React to live background updates from Google Drive
 window.addEventListener("attendance-remote-updated", () => {
     renderList();
@@ -170,6 +198,7 @@ function checkAccessGate() {
     const mainModeSelect = document.getElementById("main-mode-select");
 
     if (appState.currentUserRole) {
+        document.getElementById("main-app-container").inert = false;
         pinGateOverlay.style.display = "none";
         document.getElementById("main-app-container").style.filter = "none";
         document.getElementById("main-app-container").style.pointerEvents = "auto";
@@ -223,10 +252,8 @@ function checkAccessGate() {
             const mainClassPicker = document.getElementById("main-class-picker");
             if (mainClassPicker) {
                 mainClassPicker.style.display = "inline-block";
-                if (!appState.currentUserRole.grade) {
-                    appState.currentUserRole.grade = "Nilai 1";
-                }
-                document.getElementById("main-class-select").value = appState.currentUserRole.grade;
+                if (window.TBTA_FIREBASE_REQUIRED) populateAssignedClasses();
+                else document.getElementById("main-class-select").value = appState.currentUserRole.grade;
             }
 
             // Show mode picker
@@ -271,6 +298,8 @@ function checkAccessGate() {
         document.getElementById("active-date-bar").style.display = "none";
         document.getElementById("file-operations-section").style.display = "none";
 
+        document.getElementById("main-app-container").inert = true;
+        if (window.TBTA_FIREBASE_REQUIRED) return;
         // Reset overlay controls - default to Riverview so role selection is readily available
         const gateLoc = document.getElementById("gate-location");
         if (gateLoc) {
@@ -644,6 +673,7 @@ function markAllHomeworkForClass(value) {
 }
 
 function handlePinInput() {
+    if (window.TBTA_FIREBASE_REQUIRED) return;
     const loc = document.getElementById("gate-location").value || "Riverview";
     const roleType = document.querySelector('input[name="primary-role"]:checked')?.value;
     const val = (pinEntryInput.value || "").trim();
@@ -695,7 +725,13 @@ function handlePinInput() {
     }
 }
 
-function lockAppAccess() {
+async function lockAppAccess() {
+    if (window.TBTA_FIREBASE_REQUIRED) {
+        window.applyFirebaseSession(null);
+        try { await window.TBTA_AUTH.signOut(); }
+        catch { alert("Unable to sign out. Check your connection and try again."); }
+        return;
+    }
     if (appState.currentUserRole) {
         logActivity(`Access Revoked: ${appState.currentUserRole.name || appState.currentUserRole.role} logged out`);
     }
@@ -748,7 +784,13 @@ function handleRoleTypeChange() {
 function handleMainClassChange() {
     if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
         const cls = document.getElementById("main-class-select").value;
-        appState.currentUserRole.grade = cls;
+        if (window.TBTA_FIREBASE_REQUIRED) {
+            const assigned = appState.currentUserRole.classes.find(item => item.id === cls);
+            if (!assigned) { populateAssignedClasses(); return; }
+            appState.currentUserRole.classId = assigned.id;
+            appState.currentUserRole.grade = assigned.name;
+            appState.currentUserRole.location = assigned.location;
+        } else appState.currentUserRole.grade = cls;
         logActivity(`Teacher switched view to class: ${cls}`);
         saveStateToLocalStorage();
         checkAccessGate();
@@ -932,6 +974,10 @@ function isClassAttendanceSubmitted(grade, dateStr) {
 
 // Update class dropdown options with green tick mark for completed & submitted classes
 function updateClassDropdownOptions() {
+    if (window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher") {
+        populateAssignedClasses();
+        return;
+    }
     const select = document.getElementById("main-class-select");
     if (!select) return;
     const currentVal = select.value;
@@ -1739,6 +1785,8 @@ function setAttendance(id, status) {
 
 // Switch tabs
 function switchTab(tabName) {
+    if (window.TBTA_FIREBASE_REQUIRED && (!appState.currentUserRole ||
+        (appState.currentUserRole.role === "Teacher" && !["Students", "Teachers"].includes(tabName)))) return;
     appState.currentTab = tabName;
 
     document.getElementById("tab-students").classList.toggle("active", tabName === "Students");
@@ -1893,6 +1941,10 @@ function filterList() {
 }
 
 function handleLocationChange() {
+    if (window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher") {
+        document.getElementById("location-select").value = appState.currentUserRole.location;
+        return;
+    }
     appState.currentLocation = document.getElementById("location-select").value;
     renderList();
 }
@@ -2775,7 +2827,7 @@ function getPersistedState() {
         attestations: appState.attestations,
         teacherCutoffTime: appState.teacherCutoffTime || "19:00",
         submittedClasses: appState.submittedClasses || {},
-        currentUserRole: appState.currentUserRole,
+        currentUserRole: window.TBTA_FIREBASE_REQUIRED ? null : appState.currentUserRole,
         customRosterSaved: appState.customRosterSaved,
         logs: appState.logs,
         committee: COMMITTEE_ROSTER,
@@ -2844,7 +2896,7 @@ function applyPersistedState(parsed, includeSession) {
     if (parsed.lockedDates && Array.isArray(parsed.lockedDates)) appState.lockedDates = parsed.lockedDates;
     if (parsed.attestations) appState.attestations = Object.assign({}, appState.attestations, parsed.attestations);
     if (parsed.customRosterSaved) appState.customRosterSaved = true;
-    if (includeSession && parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;
+    if (!window.TBTA_FIREBASE_REQUIRED && includeSession && parsed.currentUserRole) appState.currentUserRole = parsed.currentUserRole;
     if (parsed.logs && Array.isArray(parsed.logs)) appState.logs = parsed.logs.slice(0, 250);
     if (parsed.committee?.length) {
         COMMITTEE_ROSTER.length = 0;

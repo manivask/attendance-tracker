@@ -13,7 +13,7 @@
     "build:all": "npm run build:apk && npm run build:aab",
     "generate:sheets": "python generate_template.py attendance_template.xlsx && python generate_template.py TBTA-2026-2027-RHS-Attendance-And-Homework-Template.xlsx",
     "open:android": "npx cap open android",
-    "test": "npm run build:web"
+    "test": "node --test tests/*.test.mjs && node scripts/build-web.js"
   },
   "repository": {
     "type": "git",
