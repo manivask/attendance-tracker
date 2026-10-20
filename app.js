@@ -1987,8 +1987,9 @@ function renderList() {
     const isLocked = appState.lockedDates.includes(activeDate);
     const isHomeworkMode = (tab === "Students" && appState.currentMode === "Homework");
     const isTestMode = (tab === "Students" && appState.currentMode === "Test");
-    const isFirebaseTeacherRoster = window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher" && tab === "Teachers";
-    const firebaseTeacherRoster = isFirebaseTeacherRoster ? getFirebaseAssignedTeacherRoster(appState.currentUserRole) : [];
+    const hasFirebaseTeacherSession = window.TBTA_FIREBASE_REQUIRED && appState.currentUserRole?.role === "Teacher";
+    const isFirebaseTeacherRoster = hasFirebaseTeacherSession && tab === "Teachers";
+    const firebaseTeacherRoster = hasFirebaseTeacherSession ? getFirebaseAssignedTeacherRoster(appState.currentUserRole) : [];
 
     // Sync mode picker
     const mainModePicker = document.getElementById("main-mode-picker");
@@ -2015,7 +2016,7 @@ function renderList() {
     let totalTeachersAtLoc = appState.teachers.filter(t => t.Location === appState.currentLocation).length;
     if (appState.currentUserRole && appState.currentUserRole.role === "Teacher") {
         totalStudentsAtLoc = appState.students.filter(s => s.Location === appState.currentLocation && s.Grade === appState.currentUserRole.grade).length;
-        totalTeachersAtLoc = isFirebaseTeacherRoster
+        totalTeachersAtLoc = hasFirebaseTeacherSession
             ? firebaseTeacherRoster.length
             : appState.teachers.filter(t => t.Location === appState.currentLocation && t["Class Assignment"] === appState.currentUserRole.grade).length;
     }
