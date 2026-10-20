@@ -1,11 +1,26 @@
 // Resolve access from server documents only. Never infer a class from a name/ID.
-export async function resolveAuthProfile(uid, readDocument) {
+export async function resolveAuthProfile(uid, readDocument, listCollection) {
   const profile = await readDocument('users', uid);
   if (!profile) throw new Error('User profile is missing. Contact the administrator.');
   if (profile.active !== true) throw new Error('This account is inactive. Contact the administrator.');
   if (!['teacher', 'admin'].includes(profile.role)) throw new Error('This account has an unsupported role. Contact the administrator.');
   const name = typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : uid;
-  if (profile.role === 'admin') return { uid, name, role: 'Principal', classes: [] };
+  if (profile.role === 'admin') {
+    const classRecords = typeof listCollection === 'function' ? await listCollection('classes') : [];
+    const classes = classRecords
+      .filter(cls => cls?.active === true && typeof cls.name === 'string' && cls.name.trim() && typeof cls.location === 'string' && cls.location.trim())
+      .map(cls => ({
+        id: cls.id,
+        name: cls.name.trim(),
+        location: cls.location.trim(),
+        room: String(cls.room ?? ''),
+        teacherNames: Array.isArray(cls.teacherNames)
+          ? cls.teacherNames.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim())
+          : []
+      }))
+      .filter(cls => typeof cls.id === 'string' && cls.id.trim());
+    return { uid, name, role: 'Principal', classes };
+  }
   const ids = profile.assignedClassIds;
   if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string' || !id.trim() || id.includes('/')) || new Set(ids).size !== ids.length) {
     throw new Error('No valid class assignment. Contact the administrator.');
