@@ -27,11 +27,21 @@ function normalizeTeacherId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
-// Teachers use a short ID in the UI. Firebase still receives an email-shaped
-// identifier, so pilot accounts should be created as teacher01@tbta.local, etc.
+// Accept either a short teacher ID (for accounts provisioned as id@tbta.local)
+// or the exact email address used when the Firebase account was created.
+// Do not strip "@" from an email: doing so silently changes the credentials.
 function teacherIdToEmail(teacherId) {
-  const id = normalizeTeacherId(teacherId);
-  if (!id) throw new Error("Teacher ID is required.");
+  const raw = String(teacherId || "").trim().toLowerCase();
+  if (!raw) throw new Error("Enter your Teacher ID or email address.");
+  if (raw.includes("@")) {
+    // Basic client-side validation; Firebase remains authoritative.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+      throw new Error("Enter a valid teacher email address.");
+    }
+    return raw;
+  }
+  const id = normalizeTeacherId(raw);
+  if (!id) throw new Error("Enter a valid Teacher ID.");
   return `${id}@tbta.local`;
 }
 
@@ -45,6 +55,8 @@ function friendlyAuthError(error) {
       return "Too many login attempts. Please wait and try again.";
     case "auth/network-request-failed":
       return "Network unavailable. Check your connection and try again.";
+    case "auth/invalid-email":
+      return "Enter the exact Teacher ID or email address assigned to your account.";
     default:
       return "Unable to sign in. Please try again or contact the administrator.";
   }
@@ -75,9 +87,9 @@ function installFirebaseGate() {
     <p>Teacher / Administrator Sign In</p>
     <form id="firebase-login-form" autocomplete="on" style="text-align:left; margin-top:18px;">
       <div class="form-group" style="margin-bottom:14px;">
-        <label for="firebase-teacher-id" style="font-weight:600; display:block; margin-bottom:6px;">👤 Teacher ID</label>
-        <input id="firebase-teacher-id" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required
-          placeholder="Example: teacher01" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:1rem;">
+        <label for="firebase-teacher-id" style="font-weight:600; display:block; margin-bottom:6px;">👤 Teacher ID or account email</label>
+        <input id="firebase-teacher-id" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" required
+          placeholder="Example: idam or idam@school.org" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:16px;">
       </div>
       <div class="form-group" style="margin-bottom:14px;">
         <label for="firebase-pin" style="font-weight:600; display:block; margin-bottom:6px;">🔑 Password</label>
