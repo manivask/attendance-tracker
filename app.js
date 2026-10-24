@@ -163,7 +163,11 @@ window.applyFirebaseSession = function(session, roster, attendance) {
             ? attendance
             : { Teachers: {}, Students: {} };
         const latestImportedDate = Object.keys(appState.attendance.Students).sort().at(-1);
-        if (session && latestImportedDate && (!appState.activeDate || appState.activeDate > latestImportedDate)) {
+        if (session?.role === "Teacher") {
+            // Teachers take attendance for the current school day by default,
+            // regardless of a previously selected date stored on this device.
+            appState.activeDate = getTodayDateString();
+        } else if (session && latestImportedDate && (!appState.activeDate || appState.activeDate > latestImportedDate)) {
             appState.activeDate = latestImportedDate;
         }
     }
@@ -1783,6 +1787,11 @@ function updateWorkbookData() {
 
 function getActiveDateString() {
     return appState.activeDate || getDefaultWeeklyDate();
+}
+
+function getTodayDateString() {
+    const date = getEstDateTime(new Date());
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
 function getDefaultWeeklyDate() {

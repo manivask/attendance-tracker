@@ -27,11 +27,21 @@ function normalizeTeacherId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
-// Teachers use a short ID in the UI. Firebase still receives an email-shaped
-// identifier, so pilot accounts should be created as teacher01@tbta.local, etc.
+// Accept either a short teacher ID (for accounts provisioned as id@tbta.local)
+// or the exact email address used when the Firebase account was created.
+// Do not strip "@" from an email: doing so silently changes the credentials.
 function teacherIdToEmail(teacherId) {
-  const id = normalizeTeacherId(teacherId);
-  if (!id) throw new Error("Teacher ID is required.");
+  const raw = String(teacherId || "").trim().toLowerCase();
+  if (!raw) throw new Error("Enter your Teacher ID or email address.");
+  if (raw.includes("@")) {
+    // Basic client-side validation; Firebase remains authoritative.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+      throw new Error("Enter a valid teacher email address.");
+    }
+    return raw;
+  }
+  const id = normalizeTeacherId(raw);
+  if (!id) throw new Error("Enter a valid Teacher ID.");
   return `${id}@tbta.local`;
 }
 
@@ -45,6 +55,8 @@ function friendlyAuthError(error) {
       return "Too many login attempts. Please wait and try again.";
     case "auth/network-request-failed":
       return "Network unavailable. Check your connection and try again.";
+    case "auth/invalid-email":
+      return "Enter the exact Teacher ID or email address assigned to your account.";
     default:
       return "Unable to sign in. Please try again or contact the administrator.";
   }
@@ -75,9 +87,9 @@ function installFirebaseGate() {
     <p>Teacher / Administrator Sign In</p>
     <form id="firebase-login-form" autocomplete="on" style="text-align:left; margin-top:18px;">
       <div class="form-group" style="margin-bottom:14px;">
-        <label for="firebase-teacher-id" style="font-weight:600; display:block; margin-bottom:6px;">👤 Teacher ID</label>
-        <input id="firebase-teacher-id" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required
-          placeholder="Example: teacher01" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:1rem;">
+        <label for="firebase-teacher-id" style="font-weight:600; display:block; margin-bottom:6px;">👤 Teacher ID or account email</label>
+        <input id="firebase-teacher-id" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" required
+          placeholder="Example: idam or idam@school.org" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:2px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:16px;">
       </div>
       <div class="form-group" style="margin-bottom:14px;">
         <label for="firebase-pin" style="font-weight:600; display:block; margin-bottom:6px;">🔑 Password</label>
@@ -146,35 +158,45 @@ function installFirebaseGate() {
         const snapshot = await getDocsFromServer(collection(window.TBTA_FIREBASE.db, collectionName));
         return snapshot.docs.map(item => ({ ...item.data(), id: item.id }));
       });
-      errorBox.textContent = 'Loading your assigned student roster…';
-      const rawStudents = [];
+      // Fetch independent Firestore datasets concurrently. Sequential server-only reads
+      // multiply mobile network latency (especially on cellular connections).
+      errorBox.textContent = 'Loading your student roster and attendance…';
+      const db = window.TBTA_FIREBASE.db;
       const classIds = session.role === 'Teacher' ? session.assignedClassIds : null;
-      const idBatches = classIds ? Array.from({ length: Math.ceil(classIds.length / 30) }, (_, i) => classIds.slice(i * 30, (i + 1) * 30)) : [null];
-      for (const ids of idBatches) {
-        const studentsRef = collection(window.TBTA_FIREBASE.db, 'students');
-        const studentQuery = ids ? query(studentsRef, where('classId', 'in', ids)) : studentsRef;
-        const result = await getDocsFromServer(studentQuery);
-        rawStudents.push(...result.docs.map(student => ({ id: student.id, ...student.data() })));
-      }
-      const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
-      errorBox.textContent = 'Loading attendance history…';
+      const studentBatches = classIds
+        ? Array.from({ length: Math.ceil(classIds.length / 30) }, (_, i) => classIds.slice(i * 30, (i + 1) * 30))
+        : [null];
       const attendanceClassIds = session.role === 'Teacher'
         ? session.assignedClassIds
         : session.classes.map(cls => cls.id);
-      const studentAttendance = [];
-      const attendanceBatches = Array.from({ length: Math.ceil(attendanceClassIds.length / 30) }, (_, i) => attendanceClassIds.slice(i * 30, (i + 1) * 30));
-      for (const ids of attendanceBatches) {
-        if (!ids.length) continue;
-        const attendanceRef = collection(window.TBTA_FIREBASE.db, 'attendance');
-        const attendanceQuery = query(attendanceRef, where('classId', 'in', ids));
-        const result = await getDocsFromServer(attendanceQuery);
-        studentAttendance.push(...result.docs.map(record => ({ id: record.id, ...record.data() })));
-      }
-      const teacherAttendanceRef = collection(window.TBTA_FIREBASE.db, 'teacherAttendance');
+      const attendanceBatches = Array.from(
+        { length: Math.ceil(attendanceClassIds.length / 30) },
+        (_, i) => attendanceClassIds.slice(i * 30, (i + 1) * 30)
+      );
+      const studentReads = studentBatches.map(ids => {
+        const studentsRef = collection(db, 'students');
+        return getDocsFromServer(ids ? query(studentsRef, where('classId', 'in', ids)) : studentsRef);
+      });
+      const attendanceReads = attendanceBatches.filter(ids => ids.length).map(ids => {
+        const attendanceRef = collection(db, 'attendance');
+        return getDocsFromServer(query(attendanceRef, where('classId', 'in', ids)));
+      });
+      const teacherAttendanceRef = collection(db, 'teacherAttendance');
       const teacherAttendanceQuery = session.role === 'Teacher'
         ? query(teacherAttendanceRef, where('teacherUid', '==', user.uid))
         : teacherAttendanceRef;
-      const teacherAttendanceResult = await getDocsFromServer(teacherAttendanceQuery);
+      const [studentResults, attendanceResults, teacherAttendanceResult] = await Promise.all([
+        Promise.all(studentReads),
+        Promise.all(attendanceReads),
+        getDocsFromServer(teacherAttendanceQuery)
+      ]);
+      const rawStudents = studentResults.flatMap(result =>
+        result.docs.map(student => ({ id: student.id, ...student.data() }))
+      );
+      const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
+      const studentAttendance = attendanceResults.flatMap(result =>
+        result.docs.map(record => ({ id: record.id, ...record.data() }))
+      );
       const teacherAttendance = teacherAttendanceResult.docs.map(record => ({ id: record.id, ...record.data() }));
       const attendance = mapFirestoreAttendance(studentAttendance, teacherAttendance);
       if (request !== generation || getAuth().currentUser?.uid !== user.uid) return;
