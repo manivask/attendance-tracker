@@ -158,35 +158,45 @@ function installFirebaseGate() {
         const snapshot = await getDocsFromServer(collection(window.TBTA_FIREBASE.db, collectionName));
         return snapshot.docs.map(item => ({ ...item.data(), id: item.id }));
       });
-      errorBox.textContent = 'Loading your assigned student roster…';
-      const rawStudents = [];
+      // Fetch independent Firestore datasets concurrently. Sequential server-only reads
+      // multiply mobile network latency (especially on cellular connections).
+      errorBox.textContent = 'Loading your student roster and attendance…';
+      const db = window.TBTA_FIREBASE.db;
       const classIds = session.role === 'Teacher' ? session.assignedClassIds : null;
-      const idBatches = classIds ? Array.from({ length: Math.ceil(classIds.length / 30) }, (_, i) => classIds.slice(i * 30, (i + 1) * 30)) : [null];
-      for (const ids of idBatches) {
-        const studentsRef = collection(window.TBTA_FIREBASE.db, 'students');
-        const studentQuery = ids ? query(studentsRef, where('classId', 'in', ids)) : studentsRef;
-        const result = await getDocsFromServer(studentQuery);
-        rawStudents.push(...result.docs.map(student => ({ id: student.id, ...student.data() })));
-      }
-      const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
-      errorBox.textContent = 'Loading attendance history…';
+      const studentBatches = classIds
+        ? Array.from({ length: Math.ceil(classIds.length / 30) }, (_, i) => classIds.slice(i * 30, (i + 1) * 30))
+        : [null];
       const attendanceClassIds = session.role === 'Teacher'
         ? session.assignedClassIds
         : session.classes.map(cls => cls.id);
-      const studentAttendance = [];
-      const attendanceBatches = Array.from({ length: Math.ceil(attendanceClassIds.length / 30) }, (_, i) => attendanceClassIds.slice(i * 30, (i + 1) * 30));
-      for (const ids of attendanceBatches) {
-        if (!ids.length) continue;
-        const attendanceRef = collection(window.TBTA_FIREBASE.db, 'attendance');
-        const attendanceQuery = query(attendanceRef, where('classId', 'in', ids));
-        const result = await getDocsFromServer(attendanceQuery);
-        studentAttendance.push(...result.docs.map(record => ({ id: record.id, ...record.data() })));
-      }
-      const teacherAttendanceRef = collection(window.TBTA_FIREBASE.db, 'teacherAttendance');
+      const attendanceBatches = Array.from(
+        { length: Math.ceil(attendanceClassIds.length / 30) },
+        (_, i) => attendanceClassIds.slice(i * 30, (i + 1) * 30)
+      );
+      const studentReads = studentBatches.map(ids => {
+        const studentsRef = collection(db, 'students');
+        return getDocsFromServer(ids ? query(studentsRef, where('classId', 'in', ids)) : studentsRef);
+      });
+      const attendanceReads = attendanceBatches.filter(ids => ids.length).map(ids => {
+        const attendanceRef = collection(db, 'attendance');
+        return getDocsFromServer(query(attendanceRef, where('classId', 'in', ids)));
+      });
+      const teacherAttendanceRef = collection(db, 'teacherAttendance');
       const teacherAttendanceQuery = session.role === 'Teacher'
         ? query(teacherAttendanceRef, where('teacherUid', '==', user.uid))
         : teacherAttendanceRef;
-      const teacherAttendanceResult = await getDocsFromServer(teacherAttendanceQuery);
+      const [studentResults, attendanceResults, teacherAttendanceResult] = await Promise.all([
+        Promise.all(studentReads),
+        Promise.all(attendanceReads),
+        getDocsFromServer(teacherAttendanceQuery)
+      ]);
+      const rawStudents = studentResults.flatMap(result =>
+        result.docs.map(student => ({ id: student.id, ...student.data() }))
+      );
+      const roster = requireStudentRoster(mapFirestoreStudents(rawStudents, session.classes, session.location || ''));
+      const studentAttendance = attendanceResults.flatMap(result =>
+        result.docs.map(record => ({ id: record.id, ...record.data() }))
+      );
       const teacherAttendance = teacherAttendanceResult.docs.map(record => ({ id: record.id, ...record.data() }));
       const attendance = mapFirestoreAttendance(studentAttendance, teacherAttendance);
       if (request !== generation || getAuth().currentUser?.uid !== user.uid) return;
