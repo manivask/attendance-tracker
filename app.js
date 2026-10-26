@@ -3472,38 +3472,14 @@ function addNewTeacher() {
 // Cloud & GitHub Sync UI Integrations
 // ==========================================
 window.addEventListener("attendance-sync-status", (e) => {
-    const badge = document.getElementById("sync-status-badge");
-    const dot = document.getElementById("sync-dot");
-    const text = document.getElementById("sync-text");
     const adminBadge = document.getElementById("admin-sync-badge");
-    if (!badge || !dot || !text) return;
+    if (!adminBadge) return;
 
-    const { status, message, hasGdrive } = e.detail;
-    const isConnected = Boolean(hasGdrive);
-
-    if (status === "saving") {
-        dot.style.background = "#eab308";
-        text.textContent = "⏳ Syncing...";
-        badge.style.borderColor = "rgba(234, 179, 8, 0.4)";
-        badge.style.color = "#eab308";
-    } else if (status === "saved") {
-        dot.style.background = "#10b981";
-        text.textContent = "📊 Google Sheets: Live";
-        badge.style.borderColor = "rgba(16, 185, 129, 0.4)";
-        badge.style.color = "#10b981";
-        if (adminBadge) {
-            adminBadge.textContent = "Synced (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
-            adminBadge.style.background = "rgba(16, 185, 129, 0.15)";
-            adminBadge.style.color = "var(--success-color)";
-        }
-    } else if (status === "auth_required" || status === "offline") {
-        dot.style.background = "#94a3b8";
-        text.textContent = "📱 Local Storage";
-        badge.style.borderColor = "rgba(148, 163, 184, 0.3)";
-        badge.style.color = "#94a3b8";
-    } else if (status === "ready") {
-        dot.style.background = isConnected ? "#10b981" : "#3b82f6";
-        text.textContent = isConnected ? "📊 Google Sheets: Live" : "☁️ Cloud Sync: Ready";
+    const { status } = e.detail;
+    if (status === "saved") {
+        adminBadge.textContent = "Synced (" + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ")";
+        adminBadge.style.background = "rgba(16, 185, 129, 0.15)";
+        adminBadge.style.color = "var(--success-color)";
     }
 });
 
