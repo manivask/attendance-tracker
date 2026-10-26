@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <meta name="theme-color" content="#111827">
+    <meta name="theme-color" content="#f0f2f5">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,7 +17,7 @@
     <!-- SheetJS (xlsx) for Excel processing -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body class="dark-mode">
+<body>
     <!-- Security Gate Screen -->
     <div class="pin-gate-overlay" id="pin-gate-overlay">
         <div class="pin-gate-card" style="max-width: 480px; width: 100%;">
@@ -198,10 +198,6 @@
             </div>
             
             <div class="header-right">
-                <div class="sync-status-badge" id="sync-status-badge" title="Cloud Sync Status (Click to configure)" onclick="openGitHubSyncModal()" style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer; background: rgba(59, 130, 246, 0.12); color: var(--accent-color); border: 1px solid rgba(59, 130, 246, 0.3);">
-                    <span class="sync-dot" id="sync-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-color); display: inline-block;"></span>
-                    <span id="sync-text">📊 Google Sheets: Live</span>
-                </div>
                 <button class="btn btn-secondary" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="font-size: 1.15rem; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; height: 38px; line-height: 1;">🌙</button>
                 <button class="btn btn-secondary btn-logout"  onclick="lockAppAccess()">🔒 Logout</button>
             </div>
